@@ -40,6 +40,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 8px;
         border: 1px solid #ddd;
+        resize: none;
     }
     .input-container button {
         width: 18%;
@@ -51,6 +52,21 @@ st.markdown("""
         cursor: pointer;
     }
     </style>
+""", unsafe_allow_html=True)
+
+# Custom JavaScript for handling Enter and Shift+Enter keys
+st.markdown("""
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const textArea = document.querySelector('textarea');
+        textArea.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                document.querySelector('button[type="submit"]').click();
+            }
+        });
+    });
+    </script>
 """, unsafe_allow_html=True)
 
 st.title("AI Chat Interface")

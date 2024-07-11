@@ -1,5 +1,6 @@
 import os
 import pickle
+from flask import Flask, request, jsonify
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -9,6 +10,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_models import ChatOllama
 from langchain_core.runnables import RunnablePassthrough
 from langchain.retrievers.multi_query import MultiQueryRetriever
+
+# Flask setup
+app = Flask(__name__)
 
 local_path = "data/ISO 27001.pdf"
 chunks_file = "data/chunks.pkl"
@@ -65,21 +69,18 @@ def initialize():
         print("Setting up query prompt...")
         QUERY_PROMPT = PromptTemplate(
             input_variables=["question"],
-            template="""You are an AI language model assistant. Your task is to generate three
-            different versions of the given user question to retrieve relevant documents from
-            a vector database. By generating multiple perspectives on the user question, your
-            goal is to help the user overcome some of the limitations of the distance-based
-            similarity search. Provide these alternative questions separated by newlines.
-            Original question: {question}""",
+            template="""Je bent een AI language model assistent.. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
+            Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan. 
+            De originele vraag: {question}""",
         )
 
         retriever = MultiQueryRetriever.from_llm(
             vector_db.as_retriever(), llm, prompt=QUERY_PROMPT
         )
 
-        template = """Answer the question based ONLY on the following context:
+        template = """Beantwoordt de vraag ALLEEN met de volgende context:
         {context}
-        Question: {question}
+        Vraag: {question}
         """
 
         prompt = ChatPromptTemplate.from_template(template)
@@ -95,3 +96,21 @@ def initialize():
     except Exception as e:
         print(f"Initialization error: {e}")
         raise
+
+# Initialize the model when the script starts
+initialize()
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.json
+    question = data.get('question')
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+    
+    print(f"Received question: {question}")
+    response = chain.invoke(question)
+    print(f"Response: {response}")
+    return jsonify({"response": response})
+
+if __name__ == '__main__':
+    app.run(port=5000, debug=True)

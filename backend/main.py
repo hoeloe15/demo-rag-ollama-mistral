@@ -1,28 +1,22 @@
 import sys
 from pathlib import Path
-from flask import Flask, request, jsonify
 
 # Add the parent directory to the sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from backend.models import initialize, chain
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-def check_chain():
-    global chain
-    print("Model initialized:", chain is not None)
-    return chain is not None
-
 print("Initializing model...")
 initialize()
-if not check_chain():
-    print("Initialization failed: chain is None")
+print("Model initialized:", chain is not None)
 
 @app.route('/ask', methods=['POST'])
 def ask():
     try:
-        if not check_chain():
+        if chain is None:
             print("Chain is None at request handling")
             return jsonify({"error": "Model not initialized"}), 500
 
@@ -36,7 +30,7 @@ def ask():
         print(f"Response: {response}")
         return jsonify({"response": response})
     except Exception as e:
-        print(f"Error during request handling: {e}")
+        print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
