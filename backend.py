@@ -3,15 +3,16 @@ import pickle
 import warnings
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
+from pymongo import MongoClient
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.chat_models import ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain.schema import Document
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -23,13 +24,24 @@ app = Flask(__name__)
 
 local_path = "data/ISO 27001.pdf"
 chunks_file = "data/chunks.pkl"
-vector_db_path = "data/vector_db"
 openai_api_key = os.getenv('OPENAI_API_KEY')
+cosmos_connection_string = os.getenv('COSMOS_CONNECTION_STRING')
+cosmos_db_name = os.getenv('COSMOS_DB_NAME')
+cosmos_collection_name = os.getenv('COSMOS_COLLECTION_NAME')
 
 if not openai_api_key:
     raise ValueError("OPENAI_API_KEY environment variable not set")
+if not cosmos_connection_string:
+    raise ValueError("COSMOS_CONNECTION_STRING environment variable not set")
+if not cosmos_db_name:
+    raise ValueError("COSMOS_DB_NAME environment variable not set")
+if not cosmos_collection_name:
+    raise ValueError("COSMOS_COLLECTION_NAME environment variable not set")
 
 embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+client = MongoClient(cosmos_connection_string)
+db = client[cosmos_db_name]
+collection = db[cosmos_collection_name]
 
 # Initialize global variables
 chain = None
@@ -58,24 +70,17 @@ def initialize():
                 text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
                 chunks = text_splitter.split_documents(data)
                 save_chunks(chunks, chunks_file)
+                # Store chunks in Cosmos DB
+                for chunk in chunks:
+                    collection.insert_one(chunk.dict())
             else:
                 raise FileNotFoundError("PDF file not found.")
+        else:
+            # Load chunks from Cosmos DB
+            chunks = [Document(**chunk) for chunk in collection.find()]
 
         print("Loading LLM model...")
         llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
-
-        global vector_db
-        if os.path.exists(vector_db_path):
-            print("Loading existing vector database...")
-            vector_db = Chroma(persist_directory=vector_db_path, embedding_function=embedding_function)
-        else:
-            print("Creating new vector database...")
-            vector_db = Chroma.from_documents(
-                documents=chunks,
-                embedding=embedding_function,
-                collection_name="local-ai",
-                persist_directory=vector_db_path,
-            )
 
         print("Setting up query prompt...")
         QUERY_PROMPT = PromptTemplate(
@@ -86,7 +91,7 @@ def initialize():
         )
 
         retriever = MultiQueryRetriever.from_llm(
-            vector_db.as_retriever(), llm, prompt=QUERY_PROMPT
+            collection, llm, prompt=QUERY_PROMPT
         )
 
         template = """Beantwoordt de vraag ALLEEN met de volgende context:
@@ -121,11 +126,18 @@ def ask():
     question = data.get('question')
     if not question:
         return jsonify({"error": "No question provided"}), 400
-    
+
     print(f"Received question: {question}")
-    response = chain.invoke(question)
-    print(f"Response: {response}")
-    return jsonify({"response": response})
+    try:
+        response = chain.invoke(question)
+        print(f"Response: {response}")
+        return jsonify({"response": response})
+    except openai.error.RateLimitError as e:
+        print(f"RateLimitError: {e}")
+        return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "An error occurred. Please try again later."}), 500
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
