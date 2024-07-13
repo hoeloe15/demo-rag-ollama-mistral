@@ -1,5 +1,4 @@
 import os
-import pickle
 import warnings
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
@@ -13,6 +12,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.schema import Document
+from cachetools import TTLCache
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -22,63 +22,55 @@ load_dotenv()
 # Flask setup
 app = Flask(__name__)
 
+# Configuration
 local_path = "data/ISO 27001.pdf"
-chunks_file = "data/chunks.pkl"
 openai_api_key = os.getenv('OPENAI_API_KEY')
 cosmos_connection_string = os.getenv('COSMOS_CONNECTION_STRING')
 cosmos_db_name = os.getenv('COSMOS_DB_NAME')
 cosmos_collection_name = os.getenv('COSMOS_COLLECTION_NAME')
 
-if not openai_api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-if not cosmos_connection_string:
-    raise ValueError("COSMOS_CONNECTION_STRING environment variable not set")
-if not cosmos_db_name:
-    raise ValueError("COSMOS_DB_NAME environment variable not set")
-if not cosmos_collection_name:
-    raise ValueError("COSMOS_COLLECTION_NAME environment variable not set")
+# Validate environment variables
+if not all([openai_api_key, cosmos_connection_string, cosmos_db_name, cosmos_collection_name]):
+    raise ValueError("One or more required environment variables are not set")
 
-embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+# Initialize MongoDB client
 client = MongoClient(cosmos_connection_string)
 db = client[cosmos_db_name]
 collection = db[cosmos_collection_name]
 
+# Initialize OpenAI embeddings
+embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+
+# Cache for storing chunks
+chunks_cache = TTLCache(maxsize=100, ttl=300)
+
 # Initialize global variables
 chain = None
 
-def load_chunks(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as f:
-            return pickle.load(f)
-    return None
-
-def save_chunks(chunks, file_path):
-    with open(file_path, 'wb') as f:
-        pickle.dump(chunks, f)
+def load_chunks():
+    if 'chunks' in chunks_cache:
+        return chunks_cache['chunks']
+    
+    chunks = [Document(**chunk) for chunk in collection.find()]
+    if not chunks:
+        if local_path:
+            loader = UnstructuredPDFLoader(file_path=local_path)
+            data = loader.load()
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
+            chunks = text_splitter.split_documents(data)
+            collection.insert_many([chunk.dict() for chunk in chunks])
+        else:
+            raise FileNotFoundError("PDF file not found.")
+    
+    chunks_cache['chunks'] = chunks
+    return chunks
 
 def initialize():
-    global chain  # Ensure chain is global
+    global chain
     try:
         print("Loading chunks...")
-        chunks = load_chunks(chunks_file)
-        if chunks is None:
-            if local_path:
-                print("Loading PDF...")
-                loader = UnstructuredPDFLoader(file_path=local_path)
-                data = loader.load()
-                print("Splitting text into chunks...")
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
-                chunks = text_splitter.split_documents(data)
-                save_chunks(chunks, chunks_file)
-                # Store chunks in Cosmos DB
-                for chunk in chunks:
-                    collection.insert_one(chunk.dict())
-            else:
-                raise FileNotFoundError("PDF file not found.")
-        else:
-            # Load chunks from Cosmos DB
-            chunks = [Document(**chunk) for chunk in collection.find()]
-
+        chunks = load_chunks()
+        
         print("Loading LLM model...")
         llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
 
@@ -107,8 +99,7 @@ def initialize():
             | llm
             | StrOutputParser()
         )
-        print("Chain initialized:", chain is not None)
-        print("Initialization successful")
+        print("Chain initialized successfully")
     except Exception as e:
         print(f"Initialization error: {e}")
         raise
