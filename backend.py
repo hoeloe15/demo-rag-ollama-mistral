@@ -17,6 +17,7 @@ from cachetools import TTLCache
 import time
 from typing import List
 import openai
+import json
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -55,16 +56,21 @@ index_schema = SearchIndex(
 
 # Delete the existing index if it exists
 try:
+    print("Deleting existing index if it exists...")
     index_client.delete_index(search_index_name)
     print(f"Deleted existing index: {search_index_name}")
 except Exception as e:
-    print(f"No existing index to delete: {e}")
+    print(f"No existing index to delete or error in deletion: {e}")
 
 # Create the index
+print("Creating new index...")
 index_client.create_index(index_schema)
+print("Index created successfully")
 
 # Initialize OpenAI embeddings
+print("Initializing OpenAI embeddings...")
 embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+print("OpenAI embeddings initialized")
 
 # Cache for storing chunks
 chunks_cache = TTLCache(maxsize=100, ttl=300)
@@ -75,10 +81,12 @@ class AzureSearchRetriever:
         self.search_client = search_client
 
     def get_relevant_documents(self, query: str) -> List[Document]:
+        print(f"Retrieving relevant documents for query: {query}")
         results = self.search_client.search(search_text=query, select=["id", "content", "embedding"])
         documents = []
         for result in results:
             documents.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+        print(f"Retrieved {len(documents)} documents")
         return documents
 
 # Initialize global variables
@@ -86,30 +94,36 @@ chain = None
 
 def load_chunks():
     if 'chunks' in chunks_cache:
+        print("Loading chunks from cache...")
         return chunks_cache['chunks']
     
     chunks = []
     try:
+        print("Loading chunks from Azure Cognitive Search...")
         results = search_client.search(search_text="*", select=["id", "content", "embedding"])
         for result in results:
             chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+        print(f"Loaded {len(chunks)} chunks from Azure Cognitive Search")
     except Exception as e:
         print(f"Error loading chunks from Azure Cognitive Search: {e}")
         raise
 
     if not chunks:
+        print("No chunks found in Azure Cognitive Search, loading from PDF...")
         if local_path:
             loader = UnstructuredPDFLoader(file_path=local_path)
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
             chunks = text_splitter.split_documents(data)
             for i, chunk in enumerate(chunks):
+                embedding = chunk.metadata.get("embedding", [])
                 doc = {
                     "id": str(i),  # Ensure each document has a unique ID
                     "content": chunk.page_content,
-                    "embedding": chunk.metadata.get("embedding", [])
+                    "embedding": json.dumps(embedding)  # Ensure embedding is a string
                 }
                 search_client.upload_documents(documents=[doc])
+            print(f"Uploaded {len(chunks)} chunks from PDF to Azure Cognitive Search")
         else:
             raise FileNotFoundError("PDF file not found.")
     
@@ -121,11 +135,12 @@ def initialize():
     retries = 3
     for attempt in range(retries):
         try:
-            print("Loading chunks...")
+            print(f"Initialization attempt {attempt + 1}...")
             chunks = load_chunks()
             
             print("Loading LLM model...")
             llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
+            print("LLM model loaded")
 
             print("Setting up query prompt...")
             QUERY_PROMPT = PromptTemplate(
@@ -134,6 +149,7 @@ def initialize():
                 Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan. 
                 De originele vraag: {question}""",
             )
+            print("Query prompt set up")
 
             azure_retriever = AzureSearchRetriever(search_client=search_client)
 
@@ -143,6 +159,7 @@ def initialize():
             """
 
             prompt = ChatPromptTemplate.from_template(template)
+            print("Prompt template created")
 
             chain = (
                 {"context": azure_retriever.get_relevant_documents, "question": RunnablePassthrough()}
