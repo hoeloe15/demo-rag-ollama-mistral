@@ -75,6 +75,13 @@ print("OpenAI embeddings initialized")
 # Cache for storing chunks
 chunks_cache = TTLCache(maxsize=100, ttl=300)
 
+# Check if pytesseract is available
+try:
+    import pytesseract
+    pytesseract_available = True
+except ImportError:
+    pytesseract_available = False
+
 # Custom Azure Search Retriever
 class AzureSearchRetriever:
     def __init__(self, search_client: SearchClient):
@@ -111,7 +118,8 @@ def load_chunks():
     if not chunks:
         print("No chunks found in Azure Cognitive Search, loading from PDF...")
         if local_path:
-            loader = UnstructuredPDFLoader(file_path=local_path, strategy="ocr_only" if pytesseract else "hi_res")
+            strategy = "ocr_only" if pytesseract_available else "hi_res"
+            loader = UnstructuredPDFLoader(file_path=local_path, strategy=strategy)
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
             chunks = text_splitter.split_documents(data)
