@@ -4,18 +4,19 @@ from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField, ComplexField, ComplexFieldDataType
 from langchain_community.document_loaders import UnstructuredPDFLoader
-from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_openai import ChatOpenAI
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.schema import Document
 from cachetools import TTLCache
 import time
 from typing import List
+import openai
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -40,6 +41,25 @@ if not all([openai_api_key, search_service_name, search_admin_key, search_index_
 search_endpoint = f"https://{search_service_name}.search.windows.net"
 credential = AzureKeyCredential(search_admin_key)
 search_client = SearchClient(endpoint=search_endpoint, index_name=search_index_name, credential=credential)
+index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+
+# Define the index schema with searchable fields and vector field properties
+index_schema = SearchIndex(
+    name=search_index_name,
+    fields=[
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True),
+        SearchableField(name="content", type=SearchFieldDataType.String, searchable=True),
+        ComplexField(name="embedding", type=SearchFieldDataType.Collection(ComplexFieldDataType.Single), 
+                     fields=[
+                         SimpleField(name="vector", type=SearchFieldDataType.String),
+                     ],
+                     dimensions=1536,  # Update with the actual dimension of the embeddings you are using
+                     vector_search_configuration={"algorithm": "hnsw"})
+    ]
+)
+
+# Create or update the index
+index_client.create_or_update_index(index_schema)
 
 # Initialize OpenAI embeddings
 embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
@@ -52,7 +72,7 @@ class AzureSearchRetriever:
     def __init__(self, search_client: SearchClient):
         self.search_client = search_client
 
-    def retrieve(self, query: str) -> List[Document]:
+    def get_relevant_documents(self, query: str) -> List[Document]:
         results = self.search_client.search(search_text=query, select=["id", "content", "embedding"])
         documents = []
         for result in results:
@@ -115,10 +135,6 @@ def initialize():
 
             azure_retriever = AzureSearchRetriever(search_client=search_client)
 
-            retriever = MultiQueryRetriever.from_llm(
-                retriever={"search_client": azure_retriever}, llm=llm, prompt=QUERY_PROMPT
-            )
-
             template = """Beantwoordt de vraag ALLEEN met de volgende context:
             {context}
             Vraag: {question}
@@ -127,7 +143,7 @@ def initialize():
             prompt = ChatPromptTemplate.from_template(template)
 
             chain = (
-                {"context": retriever.retrieve, "question": RunnablePassthrough()}
+                {"context": azure_retriever.get_relevant_documents, "question": RunnablePassthrough()}
                 | prompt
                 | llm
                 | StrOutputParser()
