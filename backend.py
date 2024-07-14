@@ -2,7 +2,10 @@ import os
 import warnings
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
-from pymongo import MongoClient
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import SearchIndex, SimpleField, ComplexField, SearchFieldDataType
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.chat_models import ChatOpenAI
@@ -25,18 +28,18 @@ app = Flask(__name__)
 # Configuration
 local_path = "data/ISO 27001.pdf"
 openai_api_key = os.getenv('OPENAI_API_KEY')
-cosmos_connection_string = os.getenv('COSMOS_CONNECTION_STRING')
-cosmos_db_name = os.getenv('COSMOS_DB_NAME')
-cosmos_collection_name = os.getenv('COSMOS_COLLECTION_NAME')
+search_service_name = os.getenv('AZURE_SEARCH_SERVICE_NAME')
+search_admin_key = os.getenv('AZURE_SEARCH_ADMIN_KEY')
+search_index_name = os.getenv('AZURE_SEARCH_INDEX_NAME')
 
 # Validate environment variables
-if not all([openai_api_key, cosmos_connection_string, cosmos_db_name, cosmos_collection_name]):
+if not all([openai_api_key, search_service_name, search_admin_key, search_index_name]):
     raise ValueError("One or more required environment variables are not set")
 
-# Initialize MongoDB client
-client = MongoClient(cosmos_connection_string)
-db = client[cosmos_db_name]
-collection = db[cosmos_collection_name]
+# Initialize Azure Cognitive Search client
+search_endpoint = f"https://{search_service_name}.search.windows.net"
+credential = AzureKeyCredential(search_admin_key)
+search_client = SearchClient(endpoint=search_endpoint, index_name=search_index_name, credential=credential)
 
 # Initialize OpenAI embeddings
 embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
@@ -51,14 +54,24 @@ def load_chunks():
     if 'chunks' in chunks_cache:
         return chunks_cache['chunks']
     
-    chunks = [Document(**chunk) for chunk in collection.find()]
+    chunks = []
+    results = search_client.search(search_text="*", select=["id", "content", "embedding"])
+    for result in results:
+        chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+    
     if not chunks:
         if local_path:
             loader = UnstructuredPDFLoader(file_path=local_path)
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
             chunks = text_splitter.split_documents(data)
-            collection.insert_many([chunk.dict() for chunk in chunks])
+            for chunk in chunks:
+                doc = {
+                    "id": str(chunk.metadata.get("id", "")),
+                    "content": chunk.page_content,
+                    "embedding": chunk.metadata.get("embedding", [])
+                }
+                search_client.upload_documents(documents=[doc])
         else:
             raise FileNotFoundError("PDF file not found.")
     
@@ -83,7 +96,7 @@ def initialize():
         )
 
         retriever = MultiQueryRetriever.from_llm(
-            collection, llm, prompt=QUERY_PROMPT
+            search_client, llm, prompt=QUERY_PROMPT
         )
 
         template = """Beantwoordt de vraag ALLEEN met de volgende context:
