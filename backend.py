@@ -15,6 +15,7 @@ from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.schema import Document
 from cachetools import TTLCache
 import time
+from typing import List
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -45,6 +46,18 @@ embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=op
 
 # Cache for storing chunks
 chunks_cache = TTLCache(maxsize=100, ttl=300)
+
+# Custom Azure Search Retriever
+class AzureSearchRetriever:
+    def __init__(self, search_client: SearchClient):
+        self.search_client = search_client
+
+    def get_relevant_documents(self, query: str) -> List[Document]:
+        results = self.search_client.search(search_text=query, select=["id", "content", "embedding"])
+        documents = []
+        for result in results:
+            documents.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+        return documents
 
 # Initialize global variables
 chain = None
@@ -100,10 +113,11 @@ def initialize():
                 De originele vraag: {question}""",
             )
 
-            retriever = {
-                "search_client": search_client,
-                "embedding_function": embedding_function
-            }
+            azure_retriever = AzureSearchRetriever(search_client=search_client)
+
+            retriever = MultiQueryRetriever.from_llm(
+                retriever=azure_retriever, llm=llm, prompt=QUERY_PROMPT
+            )
 
             template = """Beantwoordt de vraag ALLEEN met de volgende context:
             {context}
@@ -113,7 +127,7 @@ def initialize():
             prompt = ChatPromptTemplate.from_template(template)
 
             chain = (
-                {"context": retriever, "question": RunnablePassthrough()}
+                {"context": retriever.get_relevant_documents, "question": RunnablePassthrough()}
                 | prompt
                 | llm
                 | StrOutputParser()
