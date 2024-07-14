@@ -80,9 +80,9 @@ class AzureSearchRetriever:
     def __init__(self, search_client: SearchClient):
         self.search_client = search_client
 
-    def get_relevant_documents(self, query: str) -> List[Document]:
+    def get_relevant_documents(self, query: str, max_documents: int = 5) -> List[Document]:
         print(f"Retrieving relevant documents for query: {query}")
-        results = self.search_client.search(search_text=query, select=["id", "content", "embedding"])
+        results = self.search_client.search(search_text=query, select=["id", "content", "embedding"], top=max_documents)
         documents = []
         for result in results:
             documents.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
@@ -111,7 +111,7 @@ def load_chunks():
     if not chunks:
         print("No chunks found in Azure Cognitive Search, loading from PDF...")
         if local_path:
-            loader = UnstructuredPDFLoader(file_path=local_path)
+            loader = UnstructuredPDFLoader(file_path=local_path, strategy="ocr_only" if pytesseract else "hi_res")
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
             chunks = text_splitter.split_documents(data)
@@ -129,6 +129,15 @@ def load_chunks():
     
     chunks_cache['chunks'] = chunks
     return chunks
+
+def truncate_context(context, max_tokens):
+    """Truncate context to fit within the token limit."""
+    tokens = context.split()
+    if len(tokens) <= max_tokens:
+        return context
+    truncated_context = ' '.join(tokens[:max_tokens])
+    print(f"Context truncated to {max_tokens} tokens")
+    return truncated_context
 
 def initialize():
     global chain
@@ -194,13 +203,26 @@ def ask():
 
     print(f"Received question: {question}")
     try:
-        response = chain.invoke(question)
+        # Retrieve relevant documents
+        documents = chain.get_input_steps()["context"].invoke(question)
+        # Concatenate context
+        context = " ".join([doc.page_content for doc in documents])
+        # Truncate context to fit within the token limit
+        max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
+        truncated_context = truncate_context(context, max_tokens)
+        # Prepare the input
+        input_data = {"context": truncated_context, "question": question}
+        # Invoke the chain
+        response = chain.invoke(input_data)
         response_dict = response_to_dict(response)
         print(f"Response: {response_dict}")
         return jsonify({"response": response_dict})
     except openai.error.RateLimitError as e:
         print(f"RateLimitError: {e}")
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
+    except openai.error.OpenAIError as e:
+        print(f"OpenAIError: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
