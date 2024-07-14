@@ -17,7 +17,7 @@ print(f"Admin Key: {admin_key[:5]}...")  # Only print the first few characters f
 print(f"Index Name: {index_name}")
 
 # Create the SearchIndexClient
-endpoint = search_service_name
+endpoint = f"https://{search_service_name}.search.windows.net"
 print(f"Endpoint: {endpoint}")
 credential = AzureKeyCredential(admin_key)
 index_client = SearchIndexClient(endpoint=endpoint, credential=credential)

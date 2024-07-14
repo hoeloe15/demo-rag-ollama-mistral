@@ -53,19 +53,23 @@ def load_chunks():
         return chunks_cache['chunks']
     
     chunks = []
-    results = search_client.search(search_text="*", select=["id", "content", "embedding"])
-    for result in results:
-        chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
-    
+    try:
+        results = search_client.search(search_text="*", select=["id", "content", "embedding"])
+        for result in results:
+            chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+    except Exception as e:
+        print(f"Error loading chunks from Azure Cognitive Search: {e}")
+        raise
+
     if not chunks:
         if local_path:
             loader = UnstructuredPDFLoader(file_path=local_path)
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
             chunks = text_splitter.split_documents(data)
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
                 doc = {
-                    "id": str(chunk.metadata.get("id", "")),
+                    "id": str(i),  # Ensure each document has a unique ID
                     "content": chunk.page_content,
                     "embedding": chunk.metadata.get("embedding", [])
                 }
@@ -75,6 +79,7 @@ def load_chunks():
     
     chunks_cache['chunks'] = chunks
     return chunks
+
 
 def initialize():
     global chain
