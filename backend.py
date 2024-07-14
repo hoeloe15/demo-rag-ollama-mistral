@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField, ComplexField, ComplexFieldDataType
+from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -49,17 +49,19 @@ index_schema = SearchIndex(
     fields=[
         SimpleField(name="id", type=SearchFieldDataType.String, key=True),
         SearchableField(name="content", type=SearchFieldDataType.String, searchable=True),
-        ComplexField(name="embedding", type=SearchFieldDataType.Collection(ComplexFieldDataType.Single), 
-                     fields=[
-                         SimpleField(name="vector", type=SearchFieldDataType.String),
-                     ],
-                     dimensions=1536,  # Update with the actual dimension of the embeddings you are using
-                     vector_search_configuration={"algorithm": "hnsw"})
+        SimpleField(name="embedding", type=SearchFieldDataType.String)
     ]
 )
 
-# Create or update the index
-index_client.create_or_update_index(index_schema)
+# Delete the existing index if it exists
+try:
+    index_client.delete_index(search_index_name)
+    print(f"Deleted existing index: {search_index_name}")
+except Exception as e:
+    print(f"No existing index to delete: {e}")
+
+# Create the index
+index_client.create_index(index_schema)
 
 # Initialize OpenAI embeddings
 embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
@@ -176,14 +178,30 @@ def ask():
     print(f"Received question: {question}")
     try:
         response = chain.invoke(question)
-        print(f"Response: {response}")
-        return jsonify({"response": response})
+        response_dict = response_to_dict(response)
+        print(f"Response: {response_dict}")
+        return jsonify({"response": response_dict})
     except openai.error.RateLimitError as e:
         print(f"RateLimitError: {e}")
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
+
+def response_to_dict(response):
+    """Convert the AIMessage or other OpenAI response objects to a dictionary."""
+    if isinstance(response, list):
+        return [msg_to_dict(msg) for msg in response]
+    return msg_to_dict(response)
+
+def msg_to_dict(msg):
+    """Convert AIMessage to a dictionary."""
+    if isinstance(msg, AIMessage):
+        return {
+            "content": msg.content,
+            "additional_kwargs": msg.additional_kwargs,
+        }
+    return msg
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
