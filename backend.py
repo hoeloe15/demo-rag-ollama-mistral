@@ -54,107 +54,47 @@ index_schema = SearchIndex(
     ]
 )
 
-# Delete the existing index if it exists
-try:
-    print("Deleting existing index if it exists...")
-    index_client.delete_index(search_index_name)
-    print(f"Deleted existing index: {search_index_name}")
-except Exception as e:
-    print(f"No existing index to delete or error in deletion: {e}")
-
-# Create the index
-print("Creating new index...")
-index_client.create_index(index_schema)
-print("Index created successfully")
-
-# Initialize OpenAI embeddings
-print("Initializing OpenAI embeddings...")
-embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
-print("OpenAI embeddings initialized")
-
-# Cache for storing chunks
+# Initialize the cache for storing chunks
 chunks_cache = TTLCache(maxsize=100, ttl=300)
 
-# Check if pytesseract is available
-try:
-    import pytesseract
-    pytesseract_available = True
-except ImportError:
-    pytesseract_available = False
-
-# Custom Azure Search Retriever
-class AzureSearchRetriever:
-    def __init__(self, search_client: SearchClient):
-        self.search_client = search_client
-
-    def get_relevant_documents(self, query: str, max_documents: int = 5) -> List[Document]:
-        print(f"Retrieving relevant documents for query: {query}")
-        results = self.search_client.search(search_text=query, select=["id", "content", "embedding"], top=max_documents)
-        documents = []
-        for result in results:
-            documents.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
-        print(f"Retrieved {len(documents)} documents")
-        return documents
-
-# Initialize global variables
-chain = None
-
-def load_chunks():
-    if 'chunks' in chunks_cache:
-        print("Loading chunks from cache...")
-        return chunks_cache['chunks']
-    
-    chunks = []
-    try:
-        print("Loading chunks from Azure Cognitive Search...")
-        results = search_client.search(search_text="*", select=["id", "content", "embedding"])
-        for result in results:
-            chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
-        print(f"Loaded {len(chunks)} chunks from Azure Cognitive Search")
-    except Exception as e:
-        print(f"Error loading chunks from Azure Cognitive Search: {e}")
-        raise
-
-    if not chunks:
-        print("No chunks found in Azure Cognitive Search, loading from PDF...")
-        if local_path:
-            strategy = "ocr_only" if pytesseract_available else "hi_res"
-            loader = UnstructuredPDFLoader(file_path=local_path, strategy=strategy)
-            data = loader.load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
-            chunks = text_splitter.split_documents(data)
-            for i, chunk in enumerate(chunks):
-                embedding = chunk.metadata.get("embedding", [])
-                doc = {
-                    "id": str(i),  # Ensure each document has a unique ID
-                    "content": chunk.page_content,
-                    "embedding": json.dumps(embedding)  # Ensure embedding is a string
-                }
-                search_client.upload_documents(documents=[doc])
-            print(f"Uploaded {len(chunks)} chunks from PDF to Azure Cognitive Search")
-        else:
-            raise FileNotFoundError("PDF file not found.")
-    
-    chunks_cache['chunks'] = chunks
-    return chunks
-
-def truncate_context(context, max_tokens):
-    """Truncate context to fit within the token limit."""
-    tokens = context.split()
-    if len(tokens) <= max_tokens:
-        return context
-    truncated_context = ' '.join(tokens[:max_tokens])
-    print(f"Context truncated to {max_tokens} tokens")
-    return truncated_context
+initialized = False
 
 def initialize():
-    global chain
+    global initialized
+    if initialized:
+        print("Already initialized, skipping re-initialization.")
+        return
+    initialized = True
+
     retries = 3
     for attempt in range(retries):
         try:
             print(f"Initialization attempt {attempt + 1}...")
-            chunks = load_chunks()
             
+            # Delete the existing index if it exists
+            try:
+                print("Deleting existing index if it exists...")
+                index_client.delete_index(search_index_name)
+                print(f"Deleted existing index: {search_index_name}")
+            except Exception as e:
+                print(f"No existing index to delete or error in deletion: {e}")
+
+            # Create the index
+            print("Creating new index...")
+            index_client.create_index(index_schema)
+            print("Index created successfully")
+
+            print("Initializing OpenAI embeddings...")
+            embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+            print("OpenAI embeddings initialized")
+
+            print("Loading chunks from Azure Cognitive Search...")
+            chunks = load_chunks()
+
+            if not chunks:
+                print("No chunks found in Azure Cognitive Search, loading from PDF...")
+                chunks = load_chunks_from_pdf()
+
             print("Loading LLM model...")
             llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
             print("LLM model loaded")
@@ -178,6 +118,7 @@ def initialize():
             prompt = ChatPromptTemplate.from_template(template)
             print("Prompt template created")
 
+            global chain
             chain = (
                 {"context": azure_retriever.get_relevant_documents, "question": RunnablePassthrough()}
                 | prompt
@@ -195,8 +136,56 @@ def initialize():
                 print("Failed to initialize after multiple attempts")
                 raise
 
+def load_chunks():
+    if 'chunks' in chunks_cache:
+        print("Loading chunks from cache...")
+        return chunks_cache['chunks']
+    
+    chunks = []
+    try:
+        results = search_client.search(search_text="*", select=["id", "content", "embedding"])
+        for result in results:
+            chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+        print(f"Loaded {len(chunks)} chunks from Azure Cognitive Search")
+    except Exception as e:
+        print(f"Error loading chunks from Azure Cognitive Search: {e}")
+        raise
+
+    chunks_cache['chunks'] = chunks
+    return chunks
+
+def load_chunks_from_pdf():
+    if not local_path:
+        raise FileNotFoundError("PDF file not found.")
+    
+    strategy = "ocr_only" if pytesseract_available else "hi_res"
+    loader = UnstructuredPDFLoader(file_path=local_path, strategy=strategy)
+    data = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=7500, chunk_overlap=100)
+    chunks = text_splitter.split_documents(data)
+    for i, chunk in enumerate(chunks):
+        embedding = chunk.metadata.get("embedding", [])
+        doc = {
+            "id": str(i),  # Ensure each document has a unique ID
+            "content": chunk.page_content,
+            "embedding": json.dumps(embedding)  # Ensure embedding is a string
+        }
+        search_client.upload_documents(documents=[doc])
+    print(f"Uploaded {len(chunks)} chunks from PDF to Azure Cognitive Search")
+    return chunks
+
+# Check if pytesseract is available
+try:
+    import pytesseract
+    pytesseract_available = True
+except ImportError:
+    pytesseract_available = False
+
 # Initialize the model when the script starts
-initialize()
+if __name__ == '__main__':
+    initialize()
+
+    app.run(port=5000, debug=True)
 
 @app.route('/')
 def index():
@@ -235,6 +224,15 @@ def ask():
         print(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
 
+def truncate_context(context, max_tokens):
+    """Truncate context to fit within the token limit."""
+    tokens = context.split()
+    if len(tokens) <= max_tokens:
+        return context
+    truncated_context = ' '.join(tokens[:max_tokens])
+    print(f"Context truncated to {max_tokens} tokens")
+    return truncated_context
+
 def response_to_dict(response):
     """Convert the AIMessage or other OpenAI response objects to a dictionary."""
     if isinstance(response, list):
@@ -250,5 +248,3 @@ def msg_to_dict(msg):
         }
     return msg
 
-if __name__ == '__main__':
-    app.run(port=5000, debug=True)
