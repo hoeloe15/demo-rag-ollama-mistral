@@ -6,7 +6,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.schema import Document
 from cachetools import TTLCache
+import time
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -80,45 +81,53 @@ def load_chunks():
     chunks_cache['chunks'] = chunks
     return chunks
 
-
 def initialize():
     global chain
-    try:
-        print("Loading chunks...")
-        chunks = load_chunks()
-        
-        print("Loading LLM model...")
-        llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
+    retries = 3
+    for attempt in range(retries):
+        try:
+            print("Loading chunks...")
+            chunks = load_chunks()
+            
+            print("Loading LLM model...")
+            llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
 
-        print("Setting up query prompt...")
-        QUERY_PROMPT = PromptTemplate(
-            input_variables=["question"],
-            template="""Je bent een AI language model assistent.. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
-            Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan. 
-            De originele vraag: {question}""",
-        )
+            print("Setting up query prompt...")
+            QUERY_PROMPT = PromptTemplate(
+                input_variables=["question"],
+                template="""Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
+                Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan. 
+                De originele vraag: {question}""",
+            )
 
-        retriever = MultiQueryRetriever.from_llm(
-            search_client, llm, prompt=QUERY_PROMPT
-        )
+            retriever = {
+                "search_client": search_client,
+                "embedding_function": embedding_function
+            }
 
-        template = """Beantwoordt de vraag ALLEEN met de volgende context:
-        {context}
-        Vraag: {question}
-        """
+            template = """Beantwoordt de vraag ALLEEN met de volgende context:
+            {context}
+            Vraag: {question}
+            """
 
-        prompt = ChatPromptTemplate.from_template(template)
+            prompt = ChatPromptTemplate.from_template(template)
 
-        chain = (
-            {"context": retriever, "question": RunnablePassthrough()}
-            | prompt
-            | llm
-            | StrOutputParser()
-        )
-        print("Chain initialized successfully")
-    except Exception as e:
-        print(f"Initialization error: {e}")
-        raise
+            chain = (
+                {"context": retriever, "question": RunnablePassthrough()}
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+            print("Chain initialized successfully")
+            return
+        except Exception as e:
+            print(f"Initialization error on attempt {attempt + 1}: {e}")
+            if attempt < retries - 1:
+                print("Retrying...")
+                time.sleep(5)
+            else:
+                print("Failed to initialize after multiple attempts")
+                raise
 
 # Initialize the model when the script starts
 initialize()
