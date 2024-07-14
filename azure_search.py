@@ -11,8 +11,14 @@ search_service_name = os.getenv('AZURE_SEARCH_SERVICE_NAME')
 admin_key = os.getenv('AZURE_SEARCH_ADMIN_KEY')
 index_name = os.getenv('AZURE_SEARCH_INDEX_NAME')
 
+# Debugging output
+print(f"Search Service Name: {search_service_name}")
+print(f"Admin Key: {admin_key[:5]}...")  # Only print the first few characters for security
+print(f"Index Name: {index_name}")
+
 # Create the SearchIndexClient
-endpoint = f"https://{search_service_name}.search.windows.net"
+endpoint = search_service_name
+print(f"Endpoint: {endpoint}")
 credential = AzureKeyCredential(admin_key)
 index_client = SearchIndexClient(endpoint=endpoint, credential=credential)
 
@@ -20,7 +26,7 @@ index_client = SearchIndexClient(endpoint=endpoint, credential=credential)
 fields = [
     SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
     SimpleField(name="content", type=SearchFieldDataType.String, searchable=True),
-    ComplexField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Double), searchable=True)
+    SimpleField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Double))
 ]
 
 index = SearchIndex(name=index_name, fields=fields)
