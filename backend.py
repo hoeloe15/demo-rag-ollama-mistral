@@ -52,7 +52,7 @@ class AzureSearchRetriever:
     def __init__(self, search_client: SearchClient):
         self.search_client = search_client
 
-    def get_relevant_documents(self, query: str) -> List[Document]:
+    def retrieve(self, query: str) -> List[Document]:
         results = self.search_client.search(search_text=query, select=["id", "content", "embedding"])
         documents = []
         for result in results:
@@ -116,7 +116,7 @@ def initialize():
             azure_retriever = AzureSearchRetriever(search_client=search_client)
 
             retriever = MultiQueryRetriever.from_llm(
-                retriever=azure_retriever, llm=llm, prompt=QUERY_PROMPT
+                retriever={"search_client": azure_retriever}, llm=llm, prompt=QUERY_PROMPT
             )
 
             template = """Beantwoordt de vraag ALLEEN met de volgende context:
@@ -127,7 +127,7 @@ def initialize():
             prompt = ChatPromptTemplate.from_template(template)
 
             chain = (
-                {"context": retriever.get_relevant_documents, "question": RunnablePassthrough()}
+                {"context": retriever.retrieve, "question": RunnablePassthrough()}
                 | prompt
                 | llm
                 | StrOutputParser()
