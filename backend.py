@@ -236,16 +236,8 @@ def ask():
 
     print(f"Received question: {question}")
     try:
-        # Retrieve relevant documents
-        documents = chain.get_input_steps()["context"].invoke(question)
-        # Concatenate context
-        context = " ".join([doc.page_content for doc in documents])
-        print("hi context:",context)
-        # Truncate context to fit within the token limit
-        max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
-        truncated_context = truncate_context(context, max_tokens)
-        print("hi truncated context: ", truncate_context)# Prepare the input
-        input_data = {"context": truncated_context, "question": question}
+        # Prepare the input
+        input_data = {"context": question, "question": question}
         # Invoke the chain
         response = chain.invoke(input_data)
         response_dict = response_to_dict(response)
