@@ -105,7 +105,7 @@ def test():
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.json
-    question = data.get('asdquestion')
+    question = data.get('question')
     if not question:
         return jsonify({"error": "No question provided"}), 400
 
