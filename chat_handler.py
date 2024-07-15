@@ -12,14 +12,14 @@ def display_chat_history():
         st.markdown(f'<div class="message bot"><b>AI:</b> {item["answer"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-def handle_user_input():
+def handle_user_input(backend_url):
     with st.form(key='my_form', clear_on_submit=True):
         user_input = st.text_area("Your message:", key='input', height=70)
         submit_button = st.form_submit_button(label='Send')
 
     if submit_button and user_input:
         with st.spinner("Getting response..."):
-            response = requests.post("http://localhost:5000/ask", json={"question": user_input})
+            response = requests.post(f"{backend_url}/ask", json={"question": user_input})
             if response.status_code == 200:
                 answer = response.json().get("response")
                 st.session_state.history.append({"question": user_input, "answer": answer})
