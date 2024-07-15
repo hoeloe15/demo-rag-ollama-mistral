@@ -252,8 +252,8 @@ def ask():
             "usage_metadata": usage_metadata,
         }
         
-        print(f"Response: {response_dict}")
-        return jsonify({"response": response_dict})
+        print(f"Response: {response_dict['content']}")
+        return jsonify({"response": response_dict["content"]})
     except openai.RateLimitError as e:
         print(f"RateLimitError: {e}")
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
