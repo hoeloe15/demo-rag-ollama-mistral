@@ -82,7 +82,7 @@ def load_chunks():
     if 'chunks' in chunks_cache:
         print("Loading chunks from cache...")
         return chunks_cache['chunks']
-    
+
     chunks = []
     try:
         results = search_client.search(search_text="*", select=["id", "content", "embedding"])
@@ -99,7 +99,7 @@ def load_chunks():
 def load_chunks_from_pdf():
     if not local_path:
         raise FileNotFoundError("PDF file not found.")
-    
+
     strategy = "ocr_only" if pytesseract_available else "hi_res"
     loader = UnstructuredPDFLoader(file_path=local_path, strategy=strategy)
     data = loader.load()
@@ -153,7 +153,7 @@ def initialize():
     for attempt in range(retries):
         try:
             print(f"Initialization attempt {attempt + 1}...")
-            
+
             # Delete the existing index if it exists
             try:
                 print("Deleting existing index if it exists...")
@@ -251,10 +251,10 @@ def ask():
         response_dict = response_to_dict(response)
         print(f"Response: {response_dict}")
         return jsonify({"response": response_dict})
-    except openai.error.RateLimitError as e:
+    except openai.RateLimitError as e:
         print(f"RateLimitError: {e}")
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
-    except openai.error.OpenAIError as e:
+    except openai.OpenAIError as e:
         print(f"OpenAIError: {e}")
         return jsonify({"error": str(e)}), 500
     except Exception as e:
