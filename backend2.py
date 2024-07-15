@@ -10,19 +10,19 @@ from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain.schema import Document, AIMessage
 from cachetools import TTLCache
-import time
 from typing import List
+import logging
 import openai
-import json
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Flask setup
 app = Flask(__name__)
@@ -34,9 +34,13 @@ search_service_name = os.getenv('AZURE_SEARCH_SERVICE_NAME')
 search_admin_key = os.getenv('AZURE_SEARCH_ADMIN_KEY')
 search_index_name = os.getenv('AZURE_SEARCH_INDEX_NAME')
 
-# Validate environment variables
-if not all([openai_api_key, search_service_name, search_admin_key, search_index_name]):
-    raise ValueError("One or more required environment variables are not set")
+def check_env_variables():
+    """Check that all required environment variables are set."""
+    required_vars = [openai_api_key, search_service_name, search_admin_key, search_index_name]
+    if not all(required_vars):
+        raise ValueError("One or more required environment variables are not set")
+
+check_env_variables()
 
 # Initialize Azure Cognitive Search client
 search_endpoint = f"https://{search_service_name}.search.windows.net"
@@ -64,40 +68,38 @@ try:
 except ImportError:
     pytesseract_available = False
 
-# Custom Azure Search Retriever
 class AzureSearchRetriever:
+    """Custom Azure Search Retriever."""
     def __init__(self, search_client: SearchClient):
         self.search_client = search_client
 
     def get_relevant_documents(self, query: str, max_documents: int = 5) -> List[Document]:
-        print(f"Retrieving relevant documents for query: {query}")
+        logger.info(f"Retrieving relevant documents for query: {query}")
         results = self.search_client.search(search_text=query, select=["id", "content", "embedding"], top=max_documents)
-        documents = []
-        for result in results:
-            doc = Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]})
-            documents.append(doc)
-        print(f"Retrieved {len(documents)} documents")
+        documents = [Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}) for result in results]
+        logger.info(f"Retrieved {len(documents)} documents")
         return documents
 
 def load_chunks():
+    """Load chunks from cache or Azure Cognitive Search."""
     if 'chunks' in chunks_cache:
-        print("Loading chunks from cache...")
+        logger.info("Loading chunks from cache...")
         return chunks_cache['chunks']
 
     chunks = []
     try:
         results = search_client.search(search_text="*", select=["id", "content", "embedding"])
-        for result in results:
-            chunks.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
-        print(f"Loaded {len(chunks)} chunks from Azure Cognitive Search")
+        chunks = [Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}) for result in results]
+        logger.info(f"Loaded {len(chunks)} chunks from Azure Cognitive Search")
     except Exception as e:
-        print(f"Error loading chunks from Azure Cognitive Search: {e}")
+        logger.error(f"Error loading chunks from Azure Cognitive Search: {e}")
         raise
 
     chunks_cache['chunks'] = chunks
     return chunks
 
 def load_chunks_from_pdf():
+    """Load chunks from a PDF file."""
     if not local_path:
         raise FileNotFoundError("PDF file not found.")
 
@@ -114,7 +116,7 @@ def load_chunks_from_pdf():
             "embedding": json.dumps(embedding)  # Ensure embedding is a string
         }
         search_client.upload_documents(documents=[doc])
-    print(f"Uploaded {len(chunks)} chunks from PDF to Azure Cognitive Search")
+    logger.info(f"Uploaded {len(chunks)} chunks from PDF to Azure Cognitive Search")
     return chunks
 
 def truncate_context(context, max_tokens):
@@ -123,7 +125,7 @@ def truncate_context(context, max_tokens):
     if len(tokens) <= max_tokens:
         return context
     truncated_context = ' '.join(tokens[:max_tokens])
-    print(f"Context truncated to {max_tokens} tokens")
+    logger.info(f"Context truncated to {max_tokens} tokens")
     return truncated_context
 
 def response_to_dict(response):
@@ -144,67 +146,66 @@ def msg_to_dict(msg):
 initialized = False
 
 def initialize():
+    """Initialize the system components."""
     global initialized
     if initialized:
-        print("Already initialized, skipping re-initialization.")
+        logger.info("Already initialized, skipping re-initialization.")
         return
     initialized = True
 
     retries = 3
     for attempt in range(retries):
         try:
-            print(f"Initialization attempt {attempt + 1}...")
+            logger.info(f"Initialization attempt {attempt + 1}...")
 
             # Delete the existing index if it exists
             try:
-                print("Deleting existing index if it exists...")
+                logger.info("Deleting existing index if it exists...")
                 index_client.delete_index(search_index_name)
-                print(f"Deleted existing index: {search_index_name}")
+                logger.info(f"Deleted existing index: {search_index_name}")
             except Exception as e:
-                print(f"No existing index to delete or error in deletion: {e}")
+                logger.warning(f"No existing index to delete or error in deletion: {e}")
 
             # Create the index
-            print("Creating new index...")
+            logger.info("Creating new index...")
             index_client.create_index(index_schema)
-            print("Index created successfully")
+            logger.info("Index created successfully")
 
-            print("Initializing OpenAI embeddings...")
+            logger.info("Initializing OpenAI embeddings...")
             embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
-            print("OpenAI embeddings initialized")
+            logger.info("OpenAI embeddings initialized")
 
-            print("Loading chunks from Azure Cognitive Search...")
+            logger.info("Loading chunks from Azure Cognitive Search...")
             chunks = load_chunks()
 
             if not chunks:
-                print("No chunks found in Azure Cognitive Search, loading from PDF...")
+                logger.info("No chunks found in Azure Cognitive Search, loading from PDF...")
                 chunks = load_chunks_from_pdf()
 
-            print("Loading LLM model...")
+            logger.info("Loading LLM model...")
             llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
-            print("LLM model loaded")
+            logger.info("LLM model loaded")
 
-            print("Setting up query prompt...")
+            logger.info("Setting up query prompt...")
             QUERY_PROMPT = ChatPromptTemplate.from_template(
                 """Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
                 Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan.
                 De originele vraag: {question}
                 Context: {context}"""
             )
-            print("Query prompt set up")
-
-            azure_retriever = AzureSearchRetriever(search_client=search_client)
+            logger.info("Query prompt set up")
 
             global sequence
             sequence = QUERY_PROMPT | llm
-            print("Sequence initialized successfully")
+            logger.info("Sequence initialized successfully")
             return
         except Exception as e:
-            print(f"Initialization error on attempt {attempt + 1}: {e}")
+            logger.error(f"Initialization error on attempt {attempt + 1}: {e}")
             if attempt < retries - 1:
-                print("Retrying...")
+                logger.info("Retrying...")
                 time.sleep(5)
             else:
-                print("Failed to initialize after multiple attempts")
+                logger.error("Failed to initialize after multiple attempts")
                 raise
 
 @app.route('/')
@@ -222,18 +223,18 @@ def ask():
     if not question:
         return jsonify({"error": "No question provided"}), 400
 
-    print(f"Received question: {question}")
+    logger.info(f"Received question: {question}")
     try:
         # Retrieve relevant documents
         retriever = AzureSearchRetriever(search_client=search_client)
         documents = retriever.get_relevant_documents(question)
         # Concatenate context
         context = " ".join([doc.page_content for doc in documents])
-        print("Context:", context)
+        logger.info("Context: %s", context)
         # Truncate context to fit within the token limit
         max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
         truncated_context = truncate_context(context, max_tokens)
-        print("Truncated context:", truncated_context)
+        logger.info("Truncated context: %s", truncated_context)
         # Prepare the input
         input_data = {"context": truncated_context, "question": question}
         # Invoke the sequence
@@ -252,21 +253,20 @@ def ask():
             "usage_metadata": usage_metadata,
         }
         
-        print(f"Response: {response_dict['content']}")
+        logger.info("Response: %s", response_dict['content'])
         return jsonify({"response": response_dict["content"]})
     except openai.RateLimitError as e:
-        print(f"RateLimitError: {e}")
+        logger.error(f"RateLimitError: {e}")
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
     except openai.OpenAIError as e:
-        print(f"OpenAIError: {e}")
+        logger.error(f"OpenAIError: {e}")
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
 
 
 # Initialize the model when the script starts
 if __name__ == '__main__':
     initialize()
-
     app.run(port=5000, debug=True)
