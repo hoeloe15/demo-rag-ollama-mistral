@@ -154,5 +154,6 @@ def ask():
 
 # Initialize the model when the script starts
 if __name__ == '__main__':
-    initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
+    global sequence
+    sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
     app.run(port=5000, debug=True)

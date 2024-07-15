@@ -120,10 +120,9 @@ def initialize_system(openai_api_key, search_index_name, index_client, index_sch
             # Setup query prompt
             QUERY_PROMPT = setup_query_prompt()
 
-            global sequence
             sequence = QUERY_PROMPT | llm
             logger.info("Sequence initialized successfully")
-            return
+            return sequence  # Return the sequence
         except Exception as e:
             logger.error(f"Initialization error on attempt {attempt + 1}: {e}")
             if attempt < retries - 1:
