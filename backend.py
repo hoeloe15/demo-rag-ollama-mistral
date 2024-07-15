@@ -12,7 +12,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain.schema import Document
+from langchain.schema import Document, AIMessage
 from cachetools import TTLCache
 import time
 from typing import List
@@ -236,8 +236,16 @@ def ask():
 
     print(f"Received question: {question}")
     try:
-        # Prepare the input
-        input_data = {"context": question, "question": question}
+        # Retrieve relevant documents
+        documents = chain.steps[0]["context"].invoke(question)
+        # Concatenate context
+        context = " ".join([doc.page_content for doc in documents])
+        print("hi context:",context)
+        # Truncate context to fit within the token limit
+        max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
+        truncated_context = truncate_context(context, max_tokens)
+        print("hi truncated context: ", truncate_context)# Prepare the input
+        input_data = {"context": truncated_context, "question": question}
         # Invoke the chain
         response = chain.invoke(input_data)
         response_dict = response_to_dict(response)
