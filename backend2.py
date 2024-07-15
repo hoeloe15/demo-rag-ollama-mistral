@@ -12,7 +12,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain.schema import Document
+from langchain.schema import Document, AIMessage
 from cachetools import TTLCache
 import time
 from typing import List
@@ -134,10 +134,10 @@ def response_to_dict(response):
 
 def msg_to_dict(msg):
     """Convert AIMessage to a dictionary."""
-    if isinstance(msg, Document):
+    if isinstance(msg, AIMessage):
         return {
-            "content": msg.page_content,
-            "additional_kwargs": msg.metadata,
+            "content": msg.content,
+            "additional_kwargs": msg.additional_kwargs,
         }
     return msg
 
@@ -238,7 +238,12 @@ def ask():
         input_data = {"context": truncated_context, "question": question}
         # Invoke the sequence
         response = sequence.invoke(input_data)
-        response_dict = response_to_dict(response)
+        response_dict = {
+            "content": response.content,
+            "response_metadata": response.response_metadata,
+            "id": response.id,
+            "usage_metadata": response.usage_metadata,
+        }
         print(f"Response: {response_dict}")
         return jsonify({"response": response_dict})
     except openai.RateLimitError as e:
