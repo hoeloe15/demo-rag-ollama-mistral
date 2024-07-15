@@ -238,12 +238,20 @@ def ask():
         input_data = {"context": truncated_context, "question": question}
         # Invoke the sequence
         response = sequence.invoke(input_data)
+        
+        # Convert response to a JSON serializable format
+        response_content = response.content if hasattr(response, 'content') else None
+        response_metadata = response.response_metadata if hasattr(response, 'response_metadata') else None
+        response_id = response.id if hasattr(response, 'id') else None
+        usage_metadata = response.usage_metadata if hasattr(response, 'usage_metadata') else None
+
         response_dict = {
-            "content": response.content,
-            "response_metadata": response.response_metadata,
-            "id": response.id,
-            "usage_metadata": response.usage_metadata,
+            "content": response_content,
+            "response_metadata": response_metadata,
+            "id": response_id,
+            "usage_metadata": usage_metadata,
         }
+        
         print(f"Response: {response_dict}")
         return jsonify({"response": response_dict})
     except openai.RateLimitError as e:
@@ -255,6 +263,7 @@ def ask():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
+
 
 # Initialize the model when the script starts
 if __name__ == '__main__':
