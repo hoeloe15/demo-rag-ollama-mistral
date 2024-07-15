@@ -1,3 +1,4 @@
+# azure_retriever.py
 import logging
 from azure.search.documents import SearchClient
 from langchain.schema import Document

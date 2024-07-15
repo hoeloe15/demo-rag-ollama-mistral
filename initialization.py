@@ -1,10 +1,16 @@
+# initialization.py
 import logging
 import time
-from azure.search.documents import SearchClient, SearchIndexClient
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from cachetools import TTLCache
+from langchain_community.document_loaders import UnstructuredPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
+import json
 
 logger = logging.getLogger(__name__)
 

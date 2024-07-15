@@ -1,10 +1,10 @@
-# app.py
 import os
 import warnings
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential
-from azure.search.documents import SearchClient, SearchIndexClient
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
