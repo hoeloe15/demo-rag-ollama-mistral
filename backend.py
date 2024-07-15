@@ -28,7 +28,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-local_path = "data/ISO 27001.pdf"
+local_path = "data/test.pdf"
 openai_api_key = os.getenv('OPENAI_API_KEY')
 search_service_name = os.getenv('AZURE_SEARCH_SERVICE_NAME')
 search_admin_key = os.getenv('AZURE_SEARCH_ADMIN_KEY')
@@ -240,10 +240,11 @@ def ask():
         documents = chain.get_input_steps()["context"].invoke(question)
         # Concatenate context
         context = " ".join([doc.page_content for doc in documents])
+        print("hi context:",context)
         # Truncate context to fit within the token limit
         max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
         truncated_context = truncate_context(context, max_tokens)
-        # Prepare the input
+        print("hi truncated context: ", truncate_context)# Prepare the input
         input_data = {"context": truncated_context, "question": question}
         # Invoke the chain
         response = chain.invoke(input_data)
