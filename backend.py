@@ -219,15 +219,13 @@ def initialize():
                 print("Failed to initialize after multiple attempts")
                 raise
 
-# Initialize the model when the script starts
-if __name__ == '__main__':
-    initialize()
-
-    app.run(port=5000, debug=True)
-
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/test', methods=['GET'])
+def test():
+    return jsonify({"message": "Server is running"}), 200
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -261,3 +259,9 @@ def ask():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
+
+# Initialize the model when the script starts
+if __name__ == '__main__':
+    initialize()
+
+    app.run(port=5000, debug=True)
