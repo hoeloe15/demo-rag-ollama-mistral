@@ -74,7 +74,8 @@ class AzureSearchRetriever:
         results = self.search_client.search(search_text=query, select=["id", "content", "embedding"], top=max_documents)
         documents = []
         for result in results:
-            documents.append(Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]}))
+            doc = Document(page_content=result["content"], metadata={"id": result["id"], "embedding": result["embedding"]})
+            documents.append(doc)
         print(f"Retrieved {len(documents)} documents")
         return documents
 
@@ -240,11 +241,12 @@ def ask():
         documents = chain.steps[0].invoke(question)
         # Concatenate context
         context = " ".join([doc.page_content for doc in documents])
-        print("hi context:",context)
+        print("Context:", context)
         # Truncate context to fit within the token limit
         max_tokens = 16000  # slightly less than model's limit to accommodate other tokens
         truncated_context = truncate_context(context, max_tokens)
-        print("hi truncated context: ", truncated_context)# Prepare the input
+        print("Truncated context:", truncated_context)
+        # Prepare the input
         input_data = {"context": truncated_context, "question": question}
         # Invoke the chain
         response = chain.invoke(input_data)
