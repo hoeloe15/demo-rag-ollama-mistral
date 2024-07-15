@@ -1,10 +1,9 @@
 import os
 from dotenv import load_dotenv
-from langchain_community.llms import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.schema import Document
 from langchain_core.runnables import RunnableSequence
-from typing import List
 
 # Load environment variables from .env file
 load_dotenv()
