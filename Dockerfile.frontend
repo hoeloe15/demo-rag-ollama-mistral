@@ -10,14 +10,20 @@ COPY requirements.frontend.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.frontend.txt
 
+# Install wget
+RUN apt-get update && apt-get install -y wget
+
 # Copy the rest of the application
 COPY . .
 
 # Copy the secrets file
 COPY .streamlit/secrets.toml /root/.streamlit/secrets.toml
 
+# Make wait-for-it.sh executable
+RUN chmod +x wait-for-it.sh
+
 # Expose the Streamlit port
 EXPOSE 8501
 
-# Run the Streamlit app
-CMD ["streamlit", "run", "app.py"]
+#  Run wait-for-it.sh and then start Streamlit
+CMD ["./wait-for-it.sh", "backend:5000", "--timeout=30", "--", "streamlit", "run", "app.py"]

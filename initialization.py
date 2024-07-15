@@ -96,33 +96,51 @@ def load_chunks_from_pdf(local_path, pytesseract_available, search_client):
     return chunks
 
 def initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available):
-    """Initialize the system components."""
     retries = 3
     for attempt in range(retries):
         try:
             logger.info(f"Initialization attempt {attempt + 1}...")
 
-            # Initialize the index
-            initialize_index(search_index_name, index_client, index_schema)
+            # Delete the existing index if it exists
+            try:
+                logger.info("Deleting existing index if it exists...")
+                index_client.delete_index(search_index_name)
+                logger.info(f"Deleted existing index: {search_index_name}")
+            except Exception as e:
+                logger.warning(f"No existing index to delete or error in deletion: {e}")
 
-            # Initialize embeddings
-            initialize_embeddings(openai_api_key)
+            # Create the index
+            logger.info("Creating new index...")
+            index_client.create_index(index_schema)
+            logger.info("Index created successfully")
 
-            # Load chunks
-            chunks = load_chunks(search_client)
+            logger.info("Initializing OpenAI embeddings...")
+            embedding_function = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key)
+            logger.info("OpenAI embeddings initialized")
+
+            logger.info("Loading chunks from Azure Cognitive Search...")
+            chunks = load_chunks(search_client, local_path, pytesseract_available)
+
             if not chunks:
                 logger.info("No chunks found in Azure Cognitive Search, loading from PDF...")
-                chunks = load_chunks_from_pdf(local_path, pytesseract_available, search_client)
+                chunks = load_chunks_from_pdf(local_path, search_client)
 
-            # Load LLM model
-            llm = load_llm_model(openai_api_key)
+            logger.info("Loading LLM model...")
+            llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
+            logger.info("LLM model loaded")
 
-            # Setup query prompt
-            QUERY_PROMPT = setup_query_prompt()
+            logger.info("Setting up query prompt...")
+            QUERY_PROMPT = ChatPromptTemplate.from_template(
+                """Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
+                Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan.
+                De originele vraag: {question}
+                Context: {context}"""
+            )
+            logger.info("Query prompt set up")
 
             sequence = QUERY_PROMPT | llm
             logger.info("Sequence initialized successfully")
-            return sequence  # Return the sequence
+            return sequence  # Make sure to return sequence
         except Exception as e:
             logger.error(f"Initialization error on attempt {attempt + 1}: {e}")
             if attempt < retries - 1:

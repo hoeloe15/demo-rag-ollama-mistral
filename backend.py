@@ -151,12 +151,8 @@ def ask():
         logger.error(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
 
-
-
 if __name__ == '__main__':
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        # Only initialize when not in the reloader
         global sequence
         sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
     app.run(port=5000, debug=True)
-    

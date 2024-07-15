@@ -3,7 +3,7 @@ from styles import apply_custom_css, apply_custom_js
 from chat_handler import init_session_state, display_chat_history, handle_user_input, clear_chat_history
 
 def main():
-    backend_url = st.secrets["secrets"]["BACKEND_URL"]  # Ensure correct key path
+    backend_url = st.secrets.BACKEND_URL.backend_url
     apply_custom_css()
     apply_custom_js()
     st.title("AI Chat Interface")
