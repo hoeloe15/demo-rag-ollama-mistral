@@ -7,12 +7,12 @@ from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField
 from langchain_community.document_loaders import UnstructuredPDFLoader
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.prompts import ChatPromptTemplate, PromptTemplate
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 from langchain.schema import Document
-from langchain.chains import LLMChain
-from langchain.llms import OpenAI
 from cachetools import TTLCache
 import time
 from typing import List
@@ -180,27 +180,23 @@ def initialize():
                 chunks = load_chunks_from_pdf()
 
             print("Loading LLM model...")
-            llm = OpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
+            llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
             print("LLM model loaded")
 
             print("Setting up query prompt...")
-            QUERY_PROMPT = PromptTemplate(
-                input_variables=["context", "question"],
-                template="""Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
-                Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan. 
+            QUERY_PROMPT = ChatPromptTemplate.from_template(
+                """Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
+                Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan.
                 De originele vraag: {question}
-                Context: {context}""",
+                Context: {context}"""
             )
             print("Query prompt set up")
 
             azure_retriever = AzureSearchRetriever(search_client=search_client)
 
-            global chain
-            chain = LLMChain(
-                llm=llm,
-                prompt=QUERY_PROMPT
-            )
-            print("Chain initialized successfully")
+            global sequence
+            sequence = QUERY_PROMPT | llm
+            print("Sequence initialized successfully")
             return
         except Exception as e:
             print(f"Initialization error on attempt {attempt + 1}: {e}")
@@ -240,8 +236,8 @@ def ask():
         print("Truncated context:", truncated_context)
         # Prepare the input
         input_data = {"context": truncated_context, "question": question}
-        # Invoke the chain
-        response = chain.run(input_data)
+        # Invoke the sequence
+        response = sequence.invoke(input_data)
         response_dict = response_to_dict(response)
         print(f"Response: {response_dict}")
         return jsonify({"response": response_dict})

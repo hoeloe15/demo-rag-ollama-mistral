@@ -1,8 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate, PromptTemplate
-from langchain.schema import Document
+from langchain.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 
 # Load environment variables from .env file
@@ -16,10 +15,9 @@ if not openai_api_key:
 # Initialize OpenAI Chat LLM
 llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
 
-# Define the prompt template
-QUERY_PROMPT = ChatPromptTemplate(
-    input_variables=["context", "question"],
-    template="""Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
+# Define the chat prompt template
+QUERY_PROMPT = ChatPromptTemplate.from_template(
+    """Je bent een AI language model assistent. Je taak is om zo goed mogelijk de vragen van klanten te beantwoorden met informatie die je uit de toegevoegde data kan vinden in de vectordatabase.
     Je blijft altijd netjes en als je het niet kan vinden in de vectordatabase, geef je dat aan.
     De originele vraag: {question}
     Context: {context}"""
