@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_community.llms import OpenAI
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_core.runnables import RunnableSequence
+from langchain_core.runnables import RunnablePassthrough
 from langchain.schema import Document
 
 # Load environment variables from .env file
@@ -25,12 +25,9 @@ QUERY_PROMPT = PromptTemplate(
     Context: {context}"""
 )
 
-# Create a RunnableSequence
-sequence = RunnableSequence(
-    steps=[
-        QUERY_PROMPT,  # Use the prompt template
-        llm  # Pass the processed input to the LLM
-    ]
+# Create a sequence using chaining
+sequence = (
+    QUERY_PROMPT | llm
 )
 
 def test_chain(question: str, context: str):
