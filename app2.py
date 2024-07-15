@@ -152,8 +152,10 @@ def ask():
         return jsonify({"error": "An error occurred. Please try again later."}), 500
 
 
-# Initialize the model when the script starts
+
 if __name__ == '__main__':
-    global sequence
-    sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        # Only initialize when not in the reloader
+        global sequence
+        sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
     app.run(port=5000, debug=True)
