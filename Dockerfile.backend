@@ -9,6 +9,9 @@ COPY . /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    wget \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     build-essential \
     tesseract-ocr \
     libtesseract-dev \
@@ -27,7 +30,7 @@ RUN pip install unstructured \
     unstructured_pytesseract
 
 # Expose the backend port
-EXPOSE 5000
+EXPOSE 5001
 
 # Run the Flask server
-CMD ["python", "backend.py", "--host=0.0.0.0"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5001"]

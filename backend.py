@@ -155,4 +155,4 @@ if __name__ == '__main__':
         # Only initialize when not in the reloader
         global sequence
         sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
-    app.run(port=5000, debug=True)
+    app.run(port=5001, debug=True)
