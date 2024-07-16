@@ -6,8 +6,6 @@ from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchFieldDataType, SearchableField
-from langchain_community.document_loaders import UnstructuredPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document, AIMessage
 from cachetools import TTLCache
 from typing import List
@@ -18,7 +16,7 @@ import json
 
 # Custom modules
 from azure_retriever import AzureSearchRetriever
-from initialization import initialize_system, load_chunks_from_pdf
+from initialization import initialize_system
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -124,7 +122,6 @@ def ask():
         # Prepare the input
         input_data = {"context": truncated_context, "question": question}
         # Invoke the sequence
-        global sequence  # Ensure sequence is declared as global
         response = sequence.invoke(input_data)
         
         # Convert response to a JSON serializable format
@@ -152,9 +149,10 @@ def ask():
         logger.error(f"Error: {e}")
         return jsonify({"error": "An error occurred. Please try again later."}), 500
 
+
 if __name__ == '__main__':
-    global sequence
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         # Only initialize when not in the reloader
+        global sequence
         sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
-    app.run(port=5001, debug=True)
+    app.run(port=5000, debug=True)
