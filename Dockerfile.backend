@@ -30,4 +30,4 @@ RUN pip install unstructured \
 EXPOSE 5000
 
 # Run the Flask server
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["python", "backend.py", "--host=0.0.0.0"]
