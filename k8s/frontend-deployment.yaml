@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: rjjmacr.azurecr.io/demo-app-frontend:latest
+        ports:
+        - containerPort: 8501
+        env:
+        - name: REACT_APP_API_URL
+          value: "http://backend-service:5001"
+        envFrom:
+        - configMapRef:
+            name: my-app-config
+        - secretRef:
+            name: my-app-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8501
+  selector:
+    app: frontend
