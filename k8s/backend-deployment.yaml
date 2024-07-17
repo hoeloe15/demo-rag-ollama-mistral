@@ -22,7 +22,14 @@ spec:
             name: my-app-config
         - secretRef:
             name: my-app-secret
----
+        env:
+        - name: FLASK_APP
+          value: "backend.py"
+        - name: FLASK_RUN_HOST
+          value: "0.0.0.0"
+        - name: FLASK_RUN_PORT
+          value: "5001"
+   ---
 apiVersion: v1
 kind: Service
 metadata:
