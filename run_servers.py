@@ -9,7 +9,8 @@ def run_backend():
 def run_frontend():
     """Run the frontend server."""
     print("Starting frontend server...")
-    frontend_process = subprocess.Popen(["streamlit", "run", "frontend/app.py"])
+    frontend_command = ["streamlit", "run", "frontend/app.py", "local"]
+    frontend_process = subprocess.Popen(frontend_command)
     return frontend_process
 
 def main():
