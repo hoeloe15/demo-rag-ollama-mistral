@@ -17,11 +17,6 @@ spec:
         image: rjjmacr.azurecr.io/demo-app-backend:latest
         ports:
         - containerPort: 5001
-        envFrom:
-        - configMapRef:
-            name: my-app-config
-        - secretRef:
-            name: my-app-secret
         env:
         - name: FLASK_APP
           value: "backend.py"
@@ -32,17 +27,11 @@ spec:
         - name: AZURE_SEARCH_SERVICE_NAME
           value: "rjjm-ai-search"
         - name: AZURE_SEARCH_ADMIN_KEY
-          valueFrom:
-            secretKeyRef:
-              name: my-app-secret
-              key: AZURE_SEARCH_ADMIN_KEY
+          value: "Ej3HWXhfiW2c0kNbQi48VvA5awjrdSz6SKK8oVoRzmAzSeDTQqLK"
         - name: AZURE_SEARCH_INDEX_NAME
           value: "document-indexer"
         - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: my-app-secret
-              key: OPENAI_API_KEY
+          value: "sk-proj-gpP7bdMbZi3a56OYWCQ1T3BlbkFJTXDehwoGQFMHVqsOtgk"
 ---
 apiVersion: v1
 kind: Service
