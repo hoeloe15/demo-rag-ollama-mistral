@@ -112,6 +112,10 @@ def ask():
 
     logger.info(f"Received question: {question}")
     try:
+        # Ensure sequence is initialized
+        if 'sequence' not in globals():
+            raise ValueError("Sequence not initialized")
+
         # Retrieve relevant documents
         retriever = AzureSearchRetriever(search_client=search_client)
         documents = retriever.get_relevant_documents(question)
@@ -157,4 +161,5 @@ if __name__ == '__main__':
         # Only initialize when not in the reloader
         global sequence
         sequence = initialize_system(openai_api_key, search_index_name, index_client, index_schema, search_client, local_path, pytesseract_available)
+        logger.info(f"Sequence initialized: {sequence is not None}")
     app.run(port=port, debug=True)

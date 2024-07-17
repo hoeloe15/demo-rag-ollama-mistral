@@ -12,6 +12,10 @@ services:
       - FLASK_APP=backend.py
       - FLASK_ENV=production
       - PORT=5001  # Set the port to 5001
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_SEARCH_SERVICE_NAME=${AZURE_SEARCH_SERVICE_NAME}
+      - AZURE_SEARCH_ADMIN_KEY=${AZURE_SEARCH_ADMIN_KEY}
+      - AZURE_SEARCH_INDEX_NAME=${AZURE_SEARCH_INDEX_NAME}
     volumes:
       - .:/app
     networks:
