@@ -114,6 +114,7 @@ def ask():
     try:
         # Ensure sequence is initialized
         if 'sequence' not in globals():
+            logger.error("Sequence not initialized")
             raise ValueError("Sequence not initialized")
 
         # Retrieve relevant documents
