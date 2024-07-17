@@ -6,7 +6,7 @@ __pycache__
 .Python
 env
 env.bak
-*.env
+# *.env
 .DS_Store
 *.egg
 *.egg-info
