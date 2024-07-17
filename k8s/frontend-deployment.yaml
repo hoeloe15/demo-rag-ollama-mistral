@@ -20,11 +20,6 @@ spec:
         env:
         - name: REACT_APP_API_URL
           value: "http://backend-service:5001"
-        envFrom:
-        - configMapRef:
-            name: my-app-config
-        - secretRef:
-            name: my-app-secret
 ---
 apiVersion: v1
 kind: Service
