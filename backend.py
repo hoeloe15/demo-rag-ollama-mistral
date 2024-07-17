@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configuration
-local_path = "input_data/test.pdf"
+local_path = "input_data/ISOIEC_27001.pdf"
 openai_api_key = os.getenv('OPENAI_API_KEY')
 search_service_name = os.getenv('AZURE_SEARCH_SERVICE_NAME')
 search_admin_key = os.getenv('AZURE_SEARCH_ADMIN_KEY')
