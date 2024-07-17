@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+personal.md
+
 # Distribution / packaging
 .Python
 env/
