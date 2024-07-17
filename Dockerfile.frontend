@@ -16,11 +16,9 @@ RUN apt-get update && apt-get install -y wget
 # Copy the rest of the application
 COPY . .
 
-# Copy the secrets file
+# Copy the Streamlit configuration files
 COPY .streamlit/secrets.toml /root/.streamlit/secrets.toml
-
-# Make wait-for-it.sh executable
-RUN chmod +x wait-for-it.sh
+COPY .streamlit/config.toml /root/.streamlit/config.toml
 
 # Expose the Streamlit port
 EXPOSE 8501

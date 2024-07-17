@@ -96,8 +96,8 @@ instance/
 *.sqlite
 
 # Docker
-Dockerfile
-docker-compose.yml
+# Dockerfile
+# docker-compose.yml
 
 # Ignore data files
 data/
