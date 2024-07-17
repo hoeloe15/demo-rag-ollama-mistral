@@ -26,4 +26,4 @@ RUN chmod +x wait-for-it.sh
 EXPOSE 8501
 
 # Run wait-for-it.sh and then start Streamlit
-CMD ["sh", "-c", "./wait-for-it.sh backend:5000 --timeout=60 -- streamlit run app.py"]
+CMD ["streamlit", "run", "app.py"]
