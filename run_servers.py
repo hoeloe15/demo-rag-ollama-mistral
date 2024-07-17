@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 def run_backend():
     """Run the backend server."""
@@ -9,23 +10,17 @@ def run_backend():
 def run_frontend():
     """Run the frontend server."""
     print("Starting frontend server...")
-    frontend_command = ["streamlit", "run", "frontend/app.py", "local"]
+    frontend_command = ["streamlit", "run", "app.py", "local"]
     frontend_process = subprocess.Popen(frontend_command)
     return frontend_process
 
 def main():
     backend_process = run_backend()
 
-    try:
-        # Wait for the backend process to complete
-        backend_process.wait()
-    except KeyboardInterrupt:
-        print("Backend interrupted. Shutting down...")
-        backend_process.terminate()
-        backend_process.wait()
-        return
+    # Wait for a few seconds to ensure the backend is fully started
+    time.sleep(10)
 
-    # Run frontend after backend has completed
+    # Run frontend after waiting
     frontend_process = run_frontend()
 
     try:
@@ -35,6 +30,10 @@ def main():
         print("Frontend interrupted. Shutting down...")
         frontend_process.terminate()
         frontend_process.wait()
+
+    # Ensure backend is also terminated if frontend is interrupted
+    backend_process.terminate()
+    backend_process.wait()
 
 if __name__ == "__main__":
     main()
