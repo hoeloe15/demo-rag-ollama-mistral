@@ -29,6 +29,20 @@ spec:
           value: "0.0.0.0"
         - name: FLASK_RUN_PORT
           value: "5001"
+        - name: AZURE_SEARCH_SERVICE_NAME
+          value: "rjjm-ai-search"
+        - name: AZURE_SEARCH_ADMIN_KEY
+          valueFrom:
+            secretKeyRef:
+              name: my-app-secret
+              key: AZURE_SEARCH_ADMIN_KEY
+        - name: AZURE_SEARCH_INDEX_NAME
+          value: "document-indexer"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: my-app-secret
+              key: OPENAI_API_KEY
 ---
 apiVersion: v1
 kind: Service
