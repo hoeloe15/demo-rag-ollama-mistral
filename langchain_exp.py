@@ -2,9 +2,10 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 import os
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import openai
+import uuid
 
 # Load environment variables from .env file
 load_dotenv()
@@ -36,7 +37,7 @@ prompt = PromptTemplate(
 
 # Function to get the session history from the memory
 def get_session_history(memory):
-    return memory.load_memory_variables().get("history", "")
+    return memory.load_memory_variables({}).get("history", "")
 
 # Initialize the RunnableWithMessageHistory with the memory and prompt template
 conversation = RunnableWithMessageHistory(
@@ -66,6 +67,7 @@ print(initial_prompt)
 memory.save_context({"current_question": "Wat is uw naam?"}, {"user_input": ""})
 
 index = 0
+session_id = str(uuid.uuid4())  # Generate a unique session ID
 while True:
     # Get user input
     user_input = input("U: ")
@@ -78,13 +80,13 @@ while True:
     # Prepare the input for the conversation
     input_variables = {
         "history": get_session_history(memory),
-        "current_question": memory.load_memory_variables().get("current_question", ""),
+        "current_question": memory.load_memory_variables({}).get("current_question", ""),
         "user_input": user_input,
         "next_question": get_next_question(index)
     }
 
     # Generate the response
-    response = conversation.invoke(input_variables)
+    response = conversation.invoke(input_variables, config={"configurable": {"session_id": session_id}})
     
     # Save the conversation state
     memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input})
