@@ -36,13 +36,13 @@ prompt = PromptTemplate(
 )
 
 # Function to get the session history from the memory
-def get_session_history(memory):
-    return memory.load_memory_variables({}).get("history", "")
+def get_session_history(memory, session_id):
+    return memory.load_memory_variables({"session_id": session_id}).get("history", "")
 
 # Initialize the RunnableWithMessageHistory with the memory and prompt template
 conversation = RunnableWithMessageHistory(
     runnable=llm,
-    get_session_history=lambda: get_session_history(memory)
+    get_session_history=lambda config: get_session_history(memory, config["configurable"]["session_id"])
 )
 
 # Define the list of questions
@@ -79,8 +79,8 @@ while True:
 
     # Prepare the input for the conversation
     input_variables = {
-        "history": get_session_history(memory),
-        "current_question": memory.load_memory_variables({}).get("current_question", ""),
+        "history": get_session_history(memory, session_id),
+        "current_question": memory.load_memory_variables({"session_id": session_id}).get("current_question", ""),
         "user_input": user_input,
         "next_question": get_next_question(index)
     }
