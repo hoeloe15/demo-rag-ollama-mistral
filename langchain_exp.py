@@ -42,7 +42,7 @@ def get_session_history(memory, session_id):
 # Initialize the RunnableWithMessageHistory with the memory and prompt template
 conversation = RunnableWithMessageHistory(
     runnable=llm,
-    get_session_history=lambda config: get_session_history(memory, config["configurable"]["session_id"])
+    get_session_history=lambda config: get_session_history(memory, config.get("configurable", {}).get("session_id", ""))
 )
 
 # Define the list of questions
@@ -86,7 +86,11 @@ while True:
     }
 
     # Generate the response
-    response = conversation.invoke(input_variables, config={"configurable": {"session_id": session_id}})
+    try:
+        response = conversation.invoke(input_variables, config={"configurable": {"session_id": session_id}})
+    except Exception as e:
+        print(f"Error during conversation.invoke: {e}")
+        break
     
     # Save the conversation state
     memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input})
