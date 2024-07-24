@@ -87,13 +87,13 @@ while True:
 
     # Generate the response
     try:
-        response = conversation.invoke(input_variables, config={"session_id": session_id})
+        response = conversation.invoke(input_variables, config={"configurable": {"session_id": session_id}})
     except Exception as e:
         print(f"Error during conversation.invoke: {e}")
         break
     
     # Save the conversation state
-    memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input})
+    memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input}, session_id=session_id)
     
     # Output the response
     print(f"Chatbot: {response}")
