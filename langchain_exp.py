@@ -2,7 +2,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 import os
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from dotenv import load_dotenv
 import openai
 
@@ -14,7 +14,7 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
 
 # Define the initial prompt
-initial_prompt = "Hallo, vandaag gaan we beginnen met het intake gesprek en ga ik je wat vragen stellen om meer over u te weten te komen. Antwoord de vragen zo accuraat mogelijk. U kunt altijd stoppen door 'Ik ben klaar' te typen. Laten we bij het begin beginnen, wat is uw naam?"
+initial_prompt = "Hallo, vandaag gaan we beginnen met het intakegesprek en ga ik je wat vragen stellen om meer over u te weten te komen. Antwoord de vragen zo accuraat mogelijk. U kunt altijd stoppen door 'Ik ben klaar' te typen. Laten we bij het begin beginnen, wat is uw naam?"
 
 # Set up the conversation memory
 memory = ConversationBufferMemory()
