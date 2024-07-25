@@ -64,10 +64,10 @@ def get_next_question(index):
 
 # Start the conversation
 print(initial_prompt)
-memory.save_context({"current_question": "Wat is uw naam?"}, {"user_input": ""})
+session_id = str(uuid.uuid4())  # Generate a unique session ID
+memory.save_context({"current_question": "Wat is uw naam?"}, {"user_input": ""}, session_id=session_id)
 
 index = 0
-session_id = str(uuid.uuid4())  # Generate a unique session ID
 while True:
     # Get user input
     user_input = input("U: ")
