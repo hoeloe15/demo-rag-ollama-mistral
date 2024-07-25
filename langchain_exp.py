@@ -37,7 +37,7 @@ prompt = PromptTemplate(
 
 # Function to get the session history from the memory
 def get_session_history(memory, session_id):
-    memory_variables = memory.load_memory_variables()
+    memory_variables = memory.load_memory_variables({"session_id": session_id})
     return memory_variables.get("history", "")
 
 # Initialize the RunnableWithMessageHistory with the memory and prompt template
@@ -66,7 +66,7 @@ def get_next_question(index):
 # Start the conversation
 print(initial_prompt)
 session_id = str(uuid.uuid4())  # Generate a unique session ID
-memory.save_context({"current_question": "Wat is uw naam?"}, {"user_input": ""})
+memory.save_context({"current_question": "Wat is uw naam?"}, {"user_input": ""}, session_id=session_id)
 
 index = 0
 while True:
@@ -81,7 +81,7 @@ while True:
     # Prepare the input for the conversation
     input_variables = {
         "history": get_session_history(memory, session_id),
-        "current_question": memory.load_memory_variables().get("current_question", ""),
+        "current_question": memory.load_memory_variables({"session_id": session_id}).get("current_question", ""),
         "user_input": user_input,
         "next_question": get_next_question(index)
     }
@@ -94,7 +94,7 @@ while True:
         break
     
     # Save the conversation state
-    memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input})
+    memory.save_context({"current_question": get_next_question(index)}, {"user_input": user_input}, session_id=session_id)
     
     # Output the response
     print(f"Chatbot: {response}")
