@@ -37,9 +37,8 @@ prompt = PromptTemplate(
 # Function to initialize session in the memory
 def initialize_session(memory, session_id):
     memory.save_context(
-        {"current_question": "Wat is uw naam?"},
-        {"user_input": ""},
-        {"session_id": session_id}
+        {"current_question": "Wat is uw naam?", "session_id": session_id},
+        {"user_input": ""}
     )
 
 # Function to get the session history from the memory
@@ -48,8 +47,8 @@ def get_session_history(memory, session_id):
     return memory_variables.get("history", "")
 
 # Function to save context
-def save_context(memory, current_question, user_input):
-    context = {"current_question": current_question}
+def save_context(memory, session_id, current_question, user_input):
+    context = {"current_question": current_question, "session_id": session_id}
     inputs = {"user_input": user_input}
     memory.save_context(context, inputs)
 
