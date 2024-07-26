@@ -38,10 +38,15 @@ def generate_response(model, tokenizer, prompt_text):
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return response
 
+# Function to get a conversational prompt
+def get_conversational_prompt(question, user_input, next_question):
+    return f"Je antwoord op de vraag '{question}' was '{user_input}'. Dat is interessant! {next_question}"
+
 # Start the conversation
 print(initial_prompt)
 
 index = 0
+previous_user_input = ""
 while True:
     # Get user input
     user_input = input("U: ")
@@ -53,19 +58,18 @@ while True:
 
     # Prepare the input for the conversation
     if index == 0:
-        prompt_text = f"Q: {questions[index]}\nA: {user_input}\n\n"
+        prompt_text = f"{questions[index]}\nA: {user_input}\n\n"
     else:
-        prompt_text = f"Q: {questions[index-1]}\nA: {previous_user_input}\n\n"
+        prompt_text = get_conversational_prompt(questions[index-1], previous_user_input, get_next_question(index))
 
     # Generate a conversational response
     response = generate_response(model, tokenizer, prompt_text)
 
     # Prepare the next question prompt
     next_question = get_next_question(index + 1)
-    response_text = f"{response}\n{next_question}"
 
     # Output the response
-    print(f"Chatbot: {response_text}")
+    print(f"Chatbot: {response}")
 
     # Store the current user input for the next iteration
     previous_user_input = user_input
