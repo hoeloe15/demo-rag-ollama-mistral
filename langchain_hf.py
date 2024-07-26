@@ -31,6 +31,13 @@ def get_next_question(index):
     else:
         return "Dank u voor uw antwoorden. Het gesprek is nu ten einde."
 
+# Function to generate a conversational response
+def generate_response(model, tokenizer, prompt_text):
+    inputs = tokenizer(prompt_text, return_tensors="pt", truncation=True, max_length=1024)
+    outputs = model.generate(inputs["input_ids"], max_new_tokens=50)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return response
+
 # Start the conversation
 print(initial_prompt)
 
@@ -45,19 +52,23 @@ while True:
         break
 
     # Prepare the input for the conversation
-    prompt_text = f"Q: {questions[index]}\nA: {user_input}\n\n{get_next_question(index + 1)}"
-    inputs = tokenizer(prompt_text, return_tensors="pt")
+    if index == 0:
+        prompt_text = f"Q: {questions[index]}\nA: {user_input}\n\n"
+    else:
+        prompt_text = f"Q: {questions[index-1]}\nA: {previous_user_input}\n\n"
 
-    # Generate the response
-    try:
-        outputs = model.generate(inputs["input_ids"])
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    except Exception as e:
-        print(f"Error during model invocation: {e}")
-        break
-    
+    # Generate a conversational response
+    response = generate_response(model, tokenizer, prompt_text)
+
+    # Prepare the next question prompt
+    next_question = get_next_question(index + 1)
+    response_text = f"{response}\n{next_question}"
+
     # Output the response
-    print(f"Chatbot: {response}")
+    print(f"Chatbot: {response_text}")
+
+    # Store the current user input for the next iteration
+    previous_user_input = user_input
 
     # Increment question index
     index += 1
