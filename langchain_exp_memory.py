@@ -1,74 +1,52 @@
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain.prompts import PromptTemplate
+import logging
+from langchain.prompts import ChatPromptTemplate
 from langchain.memory import ConversationBufferMemory
-import os
 from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+import os
 from dotenv import load_dotenv
-import uuid
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv('OPENAI_API_KEY')
+logger.info("Loaded environment variables.")
 
-# Initialize the LLM (ensure you have the correct API keys and packages installed)
+# Initialize the OpenAI LLM
+logger.info("Initializing the OpenAI LLM.")
 llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
-
-# Define the initial prompt
-initial_prompt = "Hallo, vandaag gaan we beginnen met het intakegesprek en ga ik je wat vragen stellen om meer over u te weten te komen. Antwoord de vragen zo accuraat mogelijk. U kunt altijd stoppen door 'Ik ben klaar' te typen. Laten we bij het begin beginnen, wat is uw naam?"
+logger.info("LLM initialized.")
 
 # Set up the conversation memory
 memory = ConversationBufferMemory()
 
+# Define the initial prompt template
+initial_prompt = "Goedemorgen, vandaag gaan we wat informatie verzamelen. Mag ik beginnen met uw naam?"
+
 # Define the template for follow-up questions
 question_template = """
-{{history}}
-Q: {{current_question}}
-A: {{user_input}}
-
-{{next_question}}
+Je antwoord op de vraag '{previous_question}' was '{user_input}'. Dank je wel, {user_name}!
+{next_question}
 """
 
 # Create a prompt template
-prompt = PromptTemplate(
-    input_variables=["history", "current_question", "user_input", "next_question"],
-    template=question_template
-)
-
-# Function to initialize session in the memory
-def initialize_session(memory, session_id):
-    memory.save_context(
-        {"current_question": "Wat is uw naam?", "session_id": session_id},
-        {"user_input": ""}
-    )
-
-# Function to get the session history from the memory
-def get_session_history(memory, session_id):
-    memory_variables = memory.load_memory_variables({"session_id": session_id})
-    return memory_variables.get("history", "")
-
-# Function to save context
-def save_context(memory, session_id, current_question, user_input):
-    context = {"current_question": current_question, "session_id": session_id}
-    inputs = {"user_input": user_input}
-    memory.save_context(context, inputs)
-
-# Initialize the RunnableWithMessageHistory with the memory and prompt template
-conversation = RunnableWithMessageHistory(
-    runnable=llm,
-    get_session_history=lambda config: get_session_history(memory, config["configurable"]["session_id"])
+prompt = ChatPromptTemplate.from_template(
+    template=question_template,
+    input_variables=["previous_question", "user_input", "user_name", "next_question"]
 )
 
 # Define the list of questions
 questions = [
-    "Wat is uw leeftijd?",
-    "Wat is uw beroep?",
+    "Wat is uw geboortedatum?",
     "Waar woont u?",
     "Wat zijn uw hobby's?",
-    "Heeft u huisdieren?",
-    "Wat is uw favoriete eten?"
+    "Wat is uw favoriete eten?",
 ]
 
-# Function to get the next question
 def get_next_question(index):
     if index < len(questions):
         return questions[index]
@@ -77,40 +55,63 @@ def get_next_question(index):
 
 # Start the conversation
 print(initial_prompt)
-session_id = str(uuid.uuid4())  # Generate a unique session ID
-initialize_session(memory, session_id)
+logger.info("Initial prompt sent to user.")
 
 index = 0
+previous_question = "Wat is uw naam?"
+previous_user_input = ""
+
 while True:
     # Get user input
     user_input = input("U: ")
-    
+    logger.info(f"User input: {user_input}")
+
     # Check for exit condition
     if user_input.lower() == "ik ben klaar":
         print("Chatbot: Bedankt voor uw tijd. Het gesprek is beëindigd.")
+        logger.info("Conversation ended by user.")
         break
 
-    # Prepare the input for the conversation
+    # Capture the user's name from the first input
+    if index == 0:
+        user_name = user_input
+    else:
+        user_name = memory.load_memory_variables().get("user_name", "gebruiker")
+
+    # Get the next question
+    next_question = get_next_question(index)
+
+    # Generate a dynamic conversational prompt
     input_variables = {
-        "history": get_session_history(memory, session_id),
-        "current_question": memory.load_memory_variables({"session_id": session_id}).get("current_question", ""),
+        "previous_question": previous_question,
         "user_input": user_input,
-        "next_question": get_next_question(index)
+        "user_name": user_name,
+        "next_question": next_question
     }
 
-    # Generate the response
-    try:
-        response = conversation.invoke(input_variables, config={"configurable": {"session_id": session_id}})
-    except Exception as e:
-        print(f"Error during conversation.invoke: {e}")
-        break
-    
-    # Save the conversation state
-    current_question = get_next_question(index)
-    save_context(memory, session_id, current_question, user_input)
-    
+    logger.info(f"Input variables for LLM: {input_variables}")
+
+    # Create the chain using LCEL
+    chain = (
+        {"previous_question": RunnablePassthrough(), "user_input": RunnablePassthrough(), "user_name": RunnablePassthrough(), "next_question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # Generate a conversational response
+    response = chain.invoke(input_variables)
+
     # Output the response
     print(f"Chatbot: {response}")
 
+    # Update memory
+    memory.save_context({"previous_question": previous_question, "user_input": user_input})
+
+    # Store the current user input and question for the next iteration
+    previous_user_input = user_input
+    previous_question = next_question
+
     # Increment question index
     index += 1
+    logger.info(f"Next question index: {index}")
