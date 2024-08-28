@@ -66,11 +66,10 @@ def ask_question(question):
 
         # Evaluate the user's answer using the evaluation chain with combined input
         evaluation_output = evaluation_chain.invoke({"input": combined_input})
-        print(evaluation_output)
-        evaluation_result = evaluation_output.strip().lower()
+        evaluation_result = evaluation_output['text'].strip().lower()  # Correctly extract the text
 
         # Debug: Print the evaluation output
-        print("Evaluation output:", evaluation_output)
+        print("Evaluation output:", evaluation_result)
 
         # Check if the LLM response indicates a correct answer
         if "yes" in evaluation_result:
@@ -80,7 +79,7 @@ def ask_question(question):
             break
         else:
             # Get an explanation for the incorrect answer
-            explanation_output = explanation_chain.invoke({"input": combined_input}).strip()
+            explanation_output = explanation_chain.invoke({"input": combined_input})['text'].strip()
             print("Incorrect answer, please try again.")
             print(f"Explanation: {explanation_output}")
 
