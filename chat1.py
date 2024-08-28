@@ -12,21 +12,17 @@ from langchain_core.prompts import ChatPromptTemplate
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o-mini")
 
-# Define the prompts
-question_prompt = ChatPromptTemplate.from_template("Question: {question}")
-evaluation_prompt = ChatPromptTemplate.from_template("Is this a valid answer to the question '{question}': '{answer}'? Please respond with 'yes' or 'no'.")
+# Define the evaluation prompt
+evaluation_prompt = ChatPromptTemplate.from_template(
+    "Is this a valid answer to the question '{question}': '{answer}'? Please respond with 'yes' or 'no'."
+)
 
-# Define the chains
-question_chain = question_prompt | model | StrOutputParser()
+# Define the chain for evaluation
 evaluation_chain = evaluation_prompt | model | StrOutputParser()
 
 def ask_question(question):
-    # Get the question from the model
-    print(question)
-    question_output = question_chain.invoke({"question": question})
-    print(question_output)
-    # Prompt the user for their answer
-    user_answer = input(f"{question_output}\nYour answer: ")
+    # Ask the user for their answer
+    user_answer = input(f"{question}\nYour answer: ")
 
     # Evaluate the user's answer
     evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
