@@ -13,8 +13,8 @@ from langchain.memory import ConversationBufferMemory
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o-mini")
 
-# Define memory to track conversation history with specific input and output keys
-memory = ConversationBufferMemory(memory_key="chat_history", input_key="question", output_key="answer", return_messages=True)
+# Define memory to track conversation history with specific memory key
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 # Define the evaluation prompt template
 evaluation_prompt = ChatPromptTemplate(
@@ -59,11 +59,14 @@ def ask_question(question):
         user_answer = input(f"{question}\nYour answer: ")
 
         # Evaluate the user's answer using the evaluation chain
-        evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer}).strip().lower()
+        evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
+        evaluation_result = evaluation_output.strip().lower()
 
         # Check if the LLM response indicates a correct answer
-        if "yes" in evaluation_output:
+        if "yes" in evaluation_result:
             print("Correct answer!")
+            # Manually save the context to memory to ensure it's stored correctly
+            memory.save_context({"question": question}, {"answer": user_answer})
             break
         else:
             # Get an explanation for the incorrect answer
@@ -84,11 +87,13 @@ questions = [
 for question_template in questions:
     # Generate the question dynamically with memory
     if '{company_name}' in question_template:
-        company_name = memory.load_memory_variables({}).get('chat_history', '')
-        if 'company' in company_name:
-            company_name = company_name.split('company:')[-1].split('\n')[0].strip()
-        else:
-            company_name = "your company"
+        chat_history = memory.load_memory_variables({}).get('chat_history', [])
+        company_name = "your company"
+        # Extract company name from chat history if available
+        for message in chat_history:
+            if "company" in message.content.lower():
+                company_name = message.content.split("company:")[-1].strip()
+                break
         question = question_template.format(company_name=company_name)
     else:
         question = question_template
