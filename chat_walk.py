@@ -75,7 +75,12 @@ def ask_questions():
 
         # Invoke the conversation chain
         output = conversation_chain.invoke(inputs)
-        response = output.strip()
+
+        # Extract the content from the AIMessage
+        if isinstance(output, AIMessage):
+            response = output.content.strip()
+        else:
+            response = str(output).strip()
 
         print(response)
         user_input = input("Your response (type 'pause' to save and exit): ")
