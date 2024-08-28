@@ -7,7 +7,7 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain_core.chains import LLMChain
+from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
 
 # Initialize the model
