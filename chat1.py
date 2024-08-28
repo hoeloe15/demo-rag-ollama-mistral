@@ -16,25 +16,25 @@ model = ChatOpenAI(model="gpt-4o-mini")
 # Define memory to track conversation history with specific memory key
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-# Define the evaluation prompt template
+# Define the evaluation prompt template with a single input key
 evaluation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant evaluating the user's answer to the question. The question: {question}\n"
+            "You are a helpful assistant evaluating the user's response. The conversation is as follows:\n"
         ),
         MessagesPlaceholder(variable_name="chat_history"),
-        HumanMessagePromptTemplate.from_template("Answer: {answer}\nIs this a valid response? Please respond with 'yes' or 'no'.")
+        HumanMessagePromptTemplate.from_template("{input}\nIs this a valid response? Please respond with 'yes' or 'no'.")
     ]
 )
 
-# Define the explanation prompt for incorrect answers
+# Define the explanation prompt for incorrect answers with a single input key
 explanation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
             "You are a helpful assistant providing explanations."
         ),
         MessagesPlaceholder(variable_name="chat_history"),
-        HumanMessagePromptTemplate.from_template("The answer '{answer}' to the question '{question}' does not seem like a valid response. Please provide a brief explanation of why this is not the right answer.")
+        HumanMessagePromptTemplate.from_template("{input}\nThe response does not seem valid. Please explain why.")
     ]
 )
 
@@ -58,14 +58,15 @@ def ask_question(question):
         # Ask the user for their answer
         user_answer = input(f"{question}\nYour answer: ")
 
-        # Debug: Print the memory content before evaluation
-        print("Memory before evaluation:", memory.load_memory_variables({}))
-
         # Combine question and answer for input handling
         combined_input = f"Question: {question}\nAnswer: {user_answer}"
 
-        # Evaluate the user's answer using the evaluation chain
-        evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
+        # Debug: Print the memory content before evaluation
+        print("Memory before evaluation:", memory.load_memory_variables({}))
+
+        # Evaluate the user's answer using the evaluation chain with combined input
+        evaluation_output = evaluation_chain.invoke({"input": combined_input})
+        print(evaluation_output)
         evaluation_result = evaluation_output.strip().lower()
 
         # Debug: Print the evaluation output
@@ -79,7 +80,7 @@ def ask_question(question):
             break
         else:
             # Get an explanation for the incorrect answer
-            explanation_output = explanation_chain.invoke({"question": question, "answer": user_answer}).strip()
+            explanation_output = explanation_chain.invoke({"input": combined_input}).strip()
             print("Incorrect answer, please try again.")
             print(f"Explanation: {explanation_output}")
 
