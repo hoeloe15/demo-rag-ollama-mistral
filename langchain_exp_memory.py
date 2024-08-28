@@ -1,5 +1,5 @@
 import logging
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -18,7 +18,7 @@ logger.info("Loaded environment variables.")
 
 # Initialize the OpenAI LLM
 logger.info("Initializing the OpenAI LLM.")
-llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo")
+llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo") 
 logger.info("LLM initialized.")
 
 # Set up the conversation memory
@@ -34,10 +34,13 @@ Je antwoord op de vraag '{previous_question}' was '{user_input}'. Dank je wel, {
 """
 
 # Create a prompt template
-prompt = ChatPromptTemplate.from_template(
-    template=question_template,
-    input_variables=["previous_question", "user_input", "user_name", "next_question"]
+prompt_template = PromptTemplate(
+    input_variables=["previous_question", "user_input", "user_name", "next_question"],
+    template=question_template
 )
+
+# Create a chat prompt template from the prompt template
+chat_prompt = ChatPromptTemplate.from_prompt_template(prompt_template)
 
 # Define the list of questions
 questions = [
@@ -94,7 +97,7 @@ while True:
     # Create the chain using LCEL
     chain = (
         {"previous_question": RunnablePassthrough(), "user_input": RunnablePassthrough(), "user_name": RunnablePassthrough(), "next_question": RunnablePassthrough()}
-        | prompt
+        | chat_prompt
         | llm
         | StrOutputParser()
     )
