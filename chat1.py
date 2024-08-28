@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage
 
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o-mini")
@@ -113,3 +114,6 @@ def generate_summary():
     print(summary_output)
 
 generate_summary()
+
+# Print the conversation history at the end of the script
+print( memory.load_memory_variables({})['chat_history'])
