@@ -17,17 +17,31 @@ evaluation_prompt = ChatPromptTemplate.from_template(
     "Is this a valid answer to the question '{question}': '{answer}'? Please respond with 'yes' or 'no'."
 )
 
-# Define the chain for evaluation
+# Define the explanation prompt for incorrect answers
+explanation_prompt = ChatPromptTemplate.from_template(
+    "The answer '{answer}' to the question '{question}' is incorrect. Please provide a brief explanation why this is not the right answer."
+)
+
+# Define the chains for evaluation and explanation
 evaluation_chain = evaluation_prompt | model | StrOutputParser()
+explanation_chain = explanation_prompt | model | StrOutputParser()
 
 def ask_question(question):
-    # Ask the user for their answer
-    user_answer = input(f"{question}\nYour answer: ")
+    while True:
+        # Ask the user for their answer
+        user_answer = input(f"{question}\nYour answer: ")
 
-    # Evaluate the user's answer
-    evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
-    
-    return evaluation_output.strip().lower() == "yes"
+        # Evaluate the user's answer
+        evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
+
+        if evaluation_output.strip().lower() == "yes":
+            print("Correct answer!")
+            break
+        else:
+            # Get an explanation for the incorrect answer
+            explanation_output = explanation_chain.invoke({"question": question, "answer": user_answer})
+            print("Incorrect answer, please try again.")
+            print(f"Explanation: {explanation_output}")
 
 # List of questions to ask
 questions = [
@@ -37,8 +51,4 @@ questions = [
 ]
 
 for question in questions:
-    if ask_question(question):
-        print("Correct answer!")
-    else:
-        print("Incorrect answer, please try again.")
-        # Optionally, you could add logic to re-ask the question or exit the loop
+    ask_question(question)
