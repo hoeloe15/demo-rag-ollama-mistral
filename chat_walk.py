@@ -59,11 +59,8 @@ conversation_prompt = ChatPromptTemplate(
     ]
 )
 
-# Create a RunnableSequence
-conversation_chain = RunnableSequence(
-    steps=[conversation_prompt, model],
-    memory=memory
-)
+# Create a RunnableSequence using the pipe operator
+conversation_chain = conversation_prompt | model
 
 def ask_questions():
     """Main function to manage the conversation."""
@@ -78,7 +75,7 @@ def ask_questions():
 
         # Invoke the conversation chain
         output = conversation_chain.invoke(inputs)
-        response = output['text'].strip()
+        response = output.strip()
 
         print(response)
         user_input = input("Your response (type 'pause' to save and exit): ")
