@@ -49,10 +49,10 @@ conversation_state = load_conversation_state()
 conversation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant helping the user go through a list of questions one by one. "
-            "Based on the conversation so far, decide which question to ask next or check if the answer is valid.\n"
-            "Here are the questions:\n{questions}\n"
-            "Here are the answers provided so far:\n{answers}\n"
+            "You are a helpful assistant. Continue the conversation based on the history, acknowledge the user's responses, "
+            "and naturally move on to the next unanswered question. If all questions are answered, let the user know and provide a summary of the conversation.\n"
+            "Questions to be asked:\n{questions}\n"
+            "Conversation so far:\n{chat_history}\n. Please ask the next unanswered or not fully answered question from the list to the user."
         ),
         MessagesPlaceholder(variable_name="chat_history"),
         HumanMessagePromptTemplate.from_template("{input}")
@@ -69,7 +69,6 @@ def ask_questions():
         inputs = {
             "input": "Please continue the conversation.",
             "questions": "\n".join(conversation_state["questions"]),
-            "answers": "\n".join([f"{q}: {a}" for q, a in conversation_state["answers"].items()]),
             "chat_history": memory.load_memory_variables({})['chat_history']
         }
 
@@ -90,15 +89,8 @@ def ask_questions():
             save_conversation_state(conversation_state)
             break
 
-        # Process the LLM's response and user's input
-        if response.startswith("Q:"):
-            # Extract question and wait for user answer
-            question = response[2:].strip()
-            conversation_state["answers"][question] = user_input
-        elif response.startswith("A:"):
-            # Validation or explanation response
-            print(response[2:].strip())
-            memory.save_context({"input": user_input}, {"output": response})
+        # Save the user's response in the conversation history
+        memory.save_context({"input": user_input}, {"output": response})
 
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
