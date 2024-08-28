@@ -93,8 +93,40 @@ questions = [
 
 # Main loop to ask questions
 for question_template in questions:
-    # Directly ask questions without trying to extract company name manually
     ask_question(question_template)
 
-print("Conversation complete! Here is what we learned:")
+# Generate summary from chat history
+def generate_summary():
+    chat_history = memory.load_memory_variables({}).get('chat_history', [])
+    summary = {
+        "Name": None,
+        "Company": None,
+        "Employees": None,
+        "IT Infrastructure": None,
+        "Mission": None
+    }
+
+    # Extract information from chat history
+    for message in chat_history:
+        if isinstance(message, HumanMessage):
+            if "What is your name?" in message.content:
+                summary["Name"] = message.content.split("Answer:")[-1].strip()
+            elif "What is the name of your company?" in message.content:
+                summary["Company"] = message.content.split("Answer:")[-1].strip()
+            elif "How many employees do you have?" in message.content:
+                summary["Employees"] = message.content.split("Answer:")[-1].strip()
+            elif "Who is responsible for your IT infrastructure at your company?" in message.content:
+                summary["IT Infrastructure"] = message.content.split("Answer:")[-1].strip()
+            elif "What is the mission of your company?" in message.content:
+                summary["Mission"] = message.content.split("Answer:")[-1].strip()
+
+    # Print summary
+    print("\nThank you for answering my questions. Here is a small overview of your company:")
+    for key, value in summary.items():
+        if value:
+            print(f"- {key}: {value}")
+
+generate_summary()
+
+print("\nConversation complete! Here is what we learned:")
 print(memory.load_memory_variables({}))
