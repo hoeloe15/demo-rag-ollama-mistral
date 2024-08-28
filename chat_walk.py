@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain.chains import LLMChain
+from langchain_core.runnables import RunnableSequence
 
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o-mini")
@@ -59,12 +59,10 @@ conversation_prompt = ChatPromptTemplate(
     ]
 )
 
-# Create chain with memory
-conversation_chain = LLMChain(
-    llm=model,
-    prompt=conversation_prompt,
-    memory=memory,
-    verbose=True
+# Create a RunnableSequence
+conversation_chain = RunnableSequence(
+    steps=[conversation_prompt, model],
+    memory=memory
 )
 
 def ask_questions():
@@ -75,7 +73,7 @@ def ask_questions():
             "input": "Please continue the conversation.",
             "questions": "\n".join(conversation_state["questions"]),
             "answers": "\n".join([f"{q}: {a}" for q, a in conversation_state["answers"].items()]),
-            "chat_history": memory.load_memory_variables({})
+            "chat_history": memory.load_memory_variables({})['chat_history']
         }
 
         # Invoke the conversation chain
@@ -91,7 +89,6 @@ def ask_questions():
             break
 
         # Process the LLM's response and user's input
-        # Assuming the LLM will return something like "Q: What is your name?" or "A: Mark is not a valid name."
         if response.startswith("Q:"):
             # Extract question and wait for user answer
             question = response[2:].strip()
