@@ -58,15 +58,24 @@ def ask_question(question):
         # Ask the user for their answer
         user_answer = input(f"{question}\nYour answer: ")
 
+        # Debug: Print the memory content before evaluation
+        print("Memory before evaluation:", memory.load_memory_variables({}))
+
+        # Combine question and answer for input handling
+        combined_input = f"Question: {question}\nAnswer: {user_answer}"
+
         # Evaluate the user's answer using the evaluation chain
         evaluation_output = evaluation_chain.invoke({"question": question, "answer": user_answer})
         evaluation_result = evaluation_output.strip().lower()
 
+        # Debug: Print the evaluation output
+        print("Evaluation output:", evaluation_output)
+
         # Check if the LLM response indicates a correct answer
         if "yes" in evaluation_result:
             print("Correct answer!")
-            # Manually save the context to memory to ensure it's stored correctly
-            memory.save_context({"question": question}, {"answer": user_answer})
+            # Manually save the context to memory as a single input-output pair
+            memory.save_context({"input": combined_input}, {"output": evaluation_result})
             break
         else:
             # Get an explanation for the incorrect answer
