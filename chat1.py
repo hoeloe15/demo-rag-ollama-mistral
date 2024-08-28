@@ -74,8 +74,7 @@ def ask_question(question):
         # Check if the LLM response indicates a correct answer
         if "yes" in evaluation_result:
             print("Correct answer!")
-            # Manually save the context to memory as a single input-output pair
-            memory.save_context({"input": combined_input}, {"output": evaluation_result})
+            # No need to manually save context; memory is automatically updated
             break
         else:
             # Get an explanation for the incorrect answer
@@ -88,25 +87,14 @@ questions = [
     "What is your name?",
     "What is the name of your company?",
     "How many employees do you have?",
-    "Who is responsible for your IT infrastructure at {company_name}?",
-    "What is the mission of {company_name}?"
+    "Who is responsible for your IT infrastructure at your company?",
+    "What is the mission of your company?"
 ]
 
 # Main loop to ask questions
 for question_template in questions:
-    # Generate the question dynamically with memory
-    if '{company_name}' in question_template:
-        chat_history = memory.load_memory_variables({}).get('chat_history', [])
-        company_name = "your company"
-        # Extract company name from chat history if available
-        for message in chat_history:
-            if "company" in message.content.lower():
-                company_name = message.content.split("company:")[-1].strip()
-                break
-        question = question_template.format(company_name=company_name)
-    else:
-        question = question_template
-    ask_question(question)
+    # Directly ask questions without trying to extract company name manually
+    ask_question(question_template)
 
 print("Conversation complete! Here is what we learned:")
 print(memory.load_memory_variables({}))
