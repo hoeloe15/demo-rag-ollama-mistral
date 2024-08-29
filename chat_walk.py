@@ -42,18 +42,20 @@ def save_conversation_state(state):
     with open(conversation_state_file, 'w') as file:
         json.dump(state, file)
 
-# Load existing conversation state or initialize new one
+# Load existing conversation state or initialize a new one
 conversation_state = load_conversation_state()
 
 # Define the prompt template to dynamically handle questions and answers
 conversation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant. If there is a histoerym, continue the conversation based on that history. When the user responds, acknowledge the user's responses, "
-            "and naturally move on to the next unanswered question if the question has been answered. If the question does not feel like a valid answer, please ask the user in a natural way if that is really their response and then continue."
-            "If all questions are answered, let the user know that the user has finished and provide a summary of the answers to the questions from the conversation.\n"
+            "You are a helpful assistant. Continue the conversation based on the history. "
+            "Acknowledge the user's responses and naturally move on to the next unanswered question. "
+            "If a response seems unusual or unclear, ask the user to confirm if that's their final answer. "
+            "If all questions are answered, inform the user that they have finished and provide a summary of the answers from the conversation.\n"
             "Questions to be asked:\n{questions}\n"
-            "Conversation so far:\n{chat_history}\n. Please ask the next unanswered or not fully answered question from the list to the user."
+            "Conversation so far:\n{chat_history}\n"
+            "Please ask the next unanswered or not fully answered question from the list to the user."
         ),
         MessagesPlaceholder(variable_name="chat_history"),
         HumanMessagePromptTemplate.from_template("{input}")
@@ -93,6 +95,28 @@ def ask_questions():
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
+        # Check if the user's input should be validated for odd responses
+        if "Are you sure" in response:
+            print("The LLM found the response odd or unclear. Please confirm or clarify.")
+            # Assuming user confirms, add logic to handle confirmation
+            confirmation = input("Is this really your answer? (yes/no): ").strip().lower()
+            if confirmation == 'yes':
+                # Save answer and continue
+                current_question_index = len(conversation_state["answers"])
+                if current_question_index < len(conversation_state["questions"]):
+                    current_question = conversation_state["questions"][current_question_index]
+                    conversation_state["answers"][current_question] = user_input
+            else:
+                print("Let's go over the answer again.")
+                continue  # Ask the same question again
+        
+        else:
+            # The answer was accepted or no validation was needed
+            current_question_index = len(conversation_state["answers"])
+            if current_question_index < len(conversation_state["questions"]):
+                current_question = conversation_state["questions"][current_question_index]
+                conversation_state["answers"][current_question] = user_input
+        
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
 
