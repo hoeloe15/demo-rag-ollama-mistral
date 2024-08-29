@@ -49,10 +49,11 @@ conversation_state = load_conversation_state()
 conversation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant. Continue the conversation based on the history, acknowledge the user's responses, "
-            "and naturally move on to the next unanswered question. If all questions are answered, let the user know and provide a summary of the conversation.\n"
+            "You are a helpful assistant. If there is a history, continue the conversation based on the history, "
+            "If there is a response, acknowledge the user's responses, and naturally move on to the next unanswered question. "
+            "If a response is unclear or incomplete, explain the user why it is unclear for you and ask whether the user is sure and can clarify. Once all questions are answered, summarize the conversation.\n"
             "Questions to be asked:\n{questions}\n"
-            "Conversation so far:\n{chat_history}\n. Please ask the next unanswered or not fully answered question from the list to the user."
+            "Conversation so far:\n{chat_history}\n"
         ),
         MessagesPlaceholder(variable_name="chat_history"),
         HumanMessagePromptTemplate.from_template("{input}")
@@ -85,10 +86,20 @@ def ask_questions():
         user_input = input("Your response (type 'pause' to save and exit): ")
 
         if user_input.lower() == 'pause':
-            print("Conversation paused. Your progress has been saved.")
             save_conversation_state(conversation_state)
+            print("Conversation paused. Your progress has been saved.")
             break
 
+        # Check if the LLM response indicates a need for more information or if it confirms understanding
+        if "Could you clarify" in response or "I'm not sure I understood" in response:
+            print("It seems the LLM needs more information. Please provide a clearer response.")
+        else:
+            # The LLM has moved on, so save the current response
+            current_question_index = len(conversation_state["answers"])
+            if current_question_index < len(conversation_state["questions"]):
+                current_question = conversation_state["questions"][current_question_index]
+                conversation_state["answers"][current_question] = user_input
+        
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
