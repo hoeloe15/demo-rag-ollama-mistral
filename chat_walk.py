@@ -108,36 +108,29 @@ def ask_questions():
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
-        # Check if the LLM indicated that the response was unclear or unusual
-        if "Are you sure" in response or "Is that correct" in response:
-            # Use the confirmation chain to evaluate the user's clarification
-            confirmation_output = confirmation_chain.invoke({
-                "input": user_input,
-                "chat_history": memory.load_memory_variables({})['chat_history']
-            })
+        # Validate the user's response with the LLM
+        validation_input = {
+            "input": user_input,
+            "chat_history": memory.load_memory_variables({})['chat_history']
+        }
 
-            # Interpret the confirmation output
-            if isinstance(confirmation_output, AIMessage):
-                confirmation_result = confirmation_output.content.strip().lower()
-            else:
-                confirmation_result = str(confirmation_output).strip().lower()
+        validation_output = confirmation_chain.invoke(validation_input)
 
-            if confirmation_result == 'confirm':
-                # Save answer and continue
-                current_question_index = len(conversation_state["answers"])
-                if current_question_index < len(conversation_state["questions"]):
-                    current_question = conversation_state["questions"][current_question_index]
-                    conversation_state["answers"][current_question] = user_input
-            elif confirmation_result == 'clarify':
-                print("The LLM needs more information. Please provide a clearer response.")
-                continue  # Ask the same question again
-
+        # Interpret the validation output
+        if isinstance(validation_output, AIMessage):
+            validation_result = validation_output.content.strip().lower()
         else:
-            # The answer was accepted or no validation was needed
+            validation_result = str(validation_output).strip().lower()
+
+        if validation_result == 'confirm':
+            # Save answer and continue
             current_question_index = len(conversation_state["answers"])
             if current_question_index < len(conversation_state["questions"]):
                 current_question = conversation_state["questions"][current_question_index]
                 conversation_state["answers"][current_question] = user_input
+        elif validation_result == 'clarify':
+            print("The LLM needs more information. Please provide a clearer response.")
+            continue  # Ask the same question again
         
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
