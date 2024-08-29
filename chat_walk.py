@@ -68,6 +68,18 @@ conversation_prompt = ChatPromptTemplate(
     ]
 )
 
+# Define the prompt template for response evaluation
+evaluation_prompt = ChatPromptTemplate(
+    messages=[
+        SystemMessagePromptTemplate.from_template(
+            "You are an assistant evaluating if the user's latest response makes sense based on the question asked. "
+            "Please respond with 'go ahead' if the response is appropriate or 'need validation' if it requires further clarification."
+        ),
+        MessagesPlaceholder(variable_name="chat_history"),
+        HumanMessagePromptTemplate.from_template("{input}")
+    ]
+)
+
 # Define the prompt template for confirmation evaluation
 confirmation_prompt = ChatPromptTemplate(
     messages=[
@@ -82,12 +94,13 @@ confirmation_prompt = ChatPromptTemplate(
 
 # Create RunnableSequences using the pipe operator
 conversation_chain = conversation_prompt | model
+evaluation_chain = evaluation_prompt | model
 confirmation_chain = confirmation_prompt | model
 
 def ask_questions():
     """Main function to manage the conversation."""
     while True:
-        # Prepare inputs with current state of questions and answers
+        # Prepare inputs with the current state of questions and answers
         inputs = {
             "input": "Please continue the conversation.",
             "questions": "\n".join(conversation_state["questions"]),
@@ -119,36 +132,61 @@ def ask_questions():
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
-        # Validate the user's response with the LLM
-        validation_input = {
+        # Evaluate the user's response with the LLM
+        evaluation_input = {
             "input": user_input,
             "chat_history": memory.load_memory_variables({})['chat_history']
         }
 
-        logging.debug(f"Inputs for confirmation chain: {validation_input}")
+        logging.debug(f"Inputs for evaluation chain: {evaluation_input}")
 
-        validation_output = confirmation_chain.invoke(validation_input)
+        evaluation_output = evaluation_chain.invoke(evaluation_input)
 
-        # Interpret the validation output
-        if isinstance(validation_output, AIMessage):
-            validation_result = validation_output.content.strip().lower()
+        # Interpret the evaluation output
+        if isinstance(evaluation_output, AIMessage):
+            evaluation_result = evaluation_output.content.strip().lower()
         else:
-            validation_result = str(validation_output).strip().lower()
+            evaluation_result = str(evaluation_output).strip().lower()
 
-        logging.debug(f"Validation result: {validation_result}")
+        logging.debug(f"Evaluation result: {evaluation_result}")
 
-        if validation_result == 'confirm':
+        if evaluation_result == 'go ahead':
             # Save answer and continue
             current_question_index = len(conversation_state["answers"])
             if current_question_index < len(conversation_state["questions"]):
                 current_question = conversation_state["questions"][current_question_index]
                 conversation_state["answers"][current_question] = user_input
                 logging.debug(f"Answer saved for question '{current_question}': {user_input}")
-        elif validation_result == 'clarify':
-            logging.debug("The LLM requested clarification for the user's response.")
-            print("The LLM needs more information. Please provide a clearer response.")
-            continue  # Ask the same question again
-        
+        elif evaluation_result == 'need validation':
+            # Use the confirmation chain to evaluate the user's clarification
+            confirmation_input = {
+                "input": user_input,
+                "chat_history": memory.load_memory_variables({})['chat_history']
+            }
+
+            logging.debug(f"Inputs for confirmation chain: {confirmation_input}")
+
+            confirmation_output = confirmation_chain.invoke(confirmation_input)
+
+            # Interpret the confirmation output
+            if isinstance(confirmation_output, AIMessage):
+                confirmation_result = confirmation_output.content.strip().lower()
+            else:
+                confirmation_result = str(confirmation_output).strip().lower()
+
+            logging.debug(f"Confirmation result: {confirmation_result}")
+
+            if confirmation_result == 'confirm':
+                # Save answer and continue
+                current_question_index = len(conversation_state["answers"])
+                if current_question_index < len(conversation_state["questions"]):
+                    current_question = conversation_state["questions"][current_question_index]
+                    conversation_state["answers"][current_question] = user_input
+                    logging.debug(f"Answer saved for question '{current_question}': {user_input}")
+            elif confirmation_result == 'clarify':
+                print("The LLM needs more information. Please provide a clearer response.")
+                continue  # Ask the same question again
+
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
 
