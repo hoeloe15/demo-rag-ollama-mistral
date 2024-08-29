@@ -1,6 +1,10 @@
 import os
 import json
+import logging
 from dotenv import load_dotenv
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,12 +38,14 @@ def load_conversation_state():
     """Load conversation state from a file."""
     if os.path.exists(conversation_state_file):
         with open(conversation_state_file, 'r') as file:
+            logging.debug("Loading conversation state from file.")
             return json.load(file)
     return {"questions": questions, "answers": {}}
 
 def save_conversation_state(state):
     """Save conversation state to a file."""
     with open(conversation_state_file, 'w') as file:
+        logging.debug("Saving conversation state to file.")
         json.dump(state, file)
 
 # Load existing conversation state or initialize a new one
@@ -88,6 +94,8 @@ def ask_questions():
             "chat_history": memory.load_memory_variables({})['chat_history']
         }
 
+        logging.debug(f"Inputs for conversation chain: {inputs}")
+
         # Invoke the conversation chain
         output = conversation_chain.invoke(inputs)
 
@@ -97,10 +105,13 @@ def ask_questions():
         else:
             response = str(output).strip()
 
+        logging.debug(f"Response from conversation chain: {response}")
+
         print(response)
         user_input = input("Your response (type 'pause' to save and exit): ")
 
         if user_input.lower() == 'pause':
+            logging.debug("User chose to pause the conversation.")
             print("Conversation paused. Your progress has been saved.")
             save_conversation_state(conversation_state)
             break
@@ -114,6 +125,8 @@ def ask_questions():
             "chat_history": memory.load_memory_variables({})['chat_history']
         }
 
+        logging.debug(f"Inputs for confirmation chain: {validation_input}")
+
         validation_output = confirmation_chain.invoke(validation_input)
 
         # Interpret the validation output
@@ -122,13 +135,17 @@ def ask_questions():
         else:
             validation_result = str(validation_output).strip().lower()
 
+        logging.debug(f"Validation result: {validation_result}")
+
         if validation_result == 'confirm':
             # Save answer and continue
             current_question_index = len(conversation_state["answers"])
             if current_question_index < len(conversation_state["questions"]):
                 current_question = conversation_state["questions"][current_question_index]
                 conversation_state["answers"][current_question] = user_input
+                logging.debug(f"Answer saved for question '{current_question}': {user_input}")
         elif validation_result == 'clarify':
+            logging.debug("The LLM requested clarification for the user's response.")
             print("The LLM needs more information. Please provide a clearer response.")
             continue  # Ask the same question again
         
