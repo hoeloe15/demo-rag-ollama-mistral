@@ -49,11 +49,11 @@ conversation_state = load_conversation_state()
 conversation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant. If there is a history, continue the conversation based on the history, "
-            "If there is a response, acknowledge the user's responses, and naturally move on to the next unanswered question. "
-            "If a response is unclear or incomplete, explain the user why it is unclear for you and ask whether the user is sure and can clarify. Once all questions are answered, summarize the conversation.\n"
+            "You are a helpful assistant. If there is a histoerym, continue the conversation based on that history. When the user responds, acknowledge the user's responses, "
+            "and naturally move on to the next unanswered question if the question has been answered. If the question does not feel like a valid answer, please ask the user in a natural way if that is really their response and then continue."
+            "If all questions are answered, let the user know that the user has finished and provide a summary of the answers to the questions from the conversation.\n"
             "Questions to be asked:\n{questions}\n"
-            "Conversation so far:\n{chat_history}\n"
+            "Conversation so far:\n{chat_history}\n. Please ask the next unanswered or not fully answered question from the list to the user."
         ),
         MessagesPlaceholder(variable_name="chat_history"),
         HumanMessagePromptTemplate.from_template("{input}")
@@ -86,23 +86,13 @@ def ask_questions():
         user_input = input("Your response (type 'pause' to save and exit): ")
 
         if user_input.lower() == 'pause':
-            save_conversation_state(conversation_state)
             print("Conversation paused. Your progress has been saved.")
+            save_conversation_state(conversation_state)
             break
 
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
-        # Check if the LLM response indicates a need for more information or if it confirms understanding
-        if "unclear" in response.lower() or "could you clarify" in response.lower() or "I'm not sure I understood" in response.lower():
-            print("The LLM needs more information. Please provide a clearer response.")
-        else:
-            # The LLM has acknowledged a valid answer and moved on
-            current_question_index = len(conversation_state["answers"])
-            if current_question_index < len(conversation_state["questions"]):
-                current_question = conversation_state["questions"][current_question_index]
-                conversation_state["answers"][current_question] = user_input
-        
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
 
