@@ -62,8 +62,21 @@ conversation_prompt = ChatPromptTemplate(
     ]
 )
 
-# Create a RunnableSequence using the pipe operator
+# Define the prompt template for confirmation evaluation
+confirmation_prompt = ChatPromptTemplate(
+    messages=[
+        SystemMessagePromptTemplate.from_template(
+            "You are a helpful assistant confirming if the user's latest response is a confirmation or a denial. "
+            "Please respond with 'confirm' if the user's response indicates agreement or confirmation, or 'clarify' if the response indicates a need for further clarification."
+        ),
+        MessagesPlaceholder(variable_name="chat_history"),
+        HumanMessagePromptTemplate.from_template("{input}")
+    ]
+)
+
+# Create RunnableSequences using the pipe operator
 conversation_chain = conversation_prompt | model
+confirmation_chain = confirmation_prompt | model
 
 def ask_questions():
     """Main function to manage the conversation."""
@@ -95,21 +108,30 @@ def ask_questions():
         # Save the user's response in the conversation history
         memory.save_context({"input": user_input}, {"output": response})
 
-        # Check if the user's input should be validated for odd responses
-        if "Are you sure" in response:
-            print("The LLM found the response odd or unclear. Please confirm or clarify.")
-            # Assuming user confirms, add logic to handle confirmation
-            confirmation = input("Is this really your answer? (yes/no): ").strip().lower()
-            if confirmation == 'yes':
+        # Check if the LLM indicated that the response was unclear or unusual
+        if "Are you sure" in response or "Is that correct" in response:
+            # Use the confirmation chain to evaluate the user's clarification
+            confirmation_output = confirmation_chain.invoke({
+                "input": user_input,
+                "chat_history": memory.load_memory_variables({})['chat_history']
+            })
+
+            # Interpret the confirmation output
+            if isinstance(confirmation_output, AIMessage):
+                confirmation_result = confirmation_output.content.strip().lower()
+            else:
+                confirmation_result = str(confirmation_output).strip().lower()
+
+            if confirmation_result == 'confirm':
                 # Save answer and continue
                 current_question_index = len(conversation_state["answers"])
                 if current_question_index < len(conversation_state["questions"]):
                     current_question = conversation_state["questions"][current_question_index]
                     conversation_state["answers"][current_question] = user_input
-            else:
-                print("Let's go over the answer again.")
+            elif confirmation_result == 'clarify':
+                print("The LLM needs more information. Please provide a clearer response.")
                 continue  # Ask the same question again
-        
+
         else:
             # The answer was accepted or no validation was needed
             current_question_index = len(conversation_state["answers"])
