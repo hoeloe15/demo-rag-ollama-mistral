@@ -90,19 +90,19 @@ def ask_questions():
             print("Conversation paused. Your progress has been saved.")
             break
 
+        # Save the user's response in the conversation history
+        memory.save_context({"input": user_input}, {"output": response})
+
         # Check if the LLM response indicates a need for more information or if it confirms understanding
-        if "Could you clarify" in response or "I'm not sure I understood" in response:
-            print("It seems the LLM needs more information. Please provide a clearer response.")
+        if "unclear" in response.lower() or "could you clarify" in response.lower() or "I'm not sure I understood" in response.lower():
+            print("The LLM needs more information. Please provide a clearer response.")
         else:
-            # The LLM has moved on, so save the current response
+            # The LLM has acknowledged a valid answer and moved on
             current_question_index = len(conversation_state["answers"])
             if current_question_index < len(conversation_state["questions"]):
                 current_question = conversation_state["questions"][current_question_index]
                 conversation_state["answers"][current_question] = user_input
         
-        # Save the user's response in the conversation history
-        memory.save_context({"input": user_input}, {"output": response})
-
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
 
