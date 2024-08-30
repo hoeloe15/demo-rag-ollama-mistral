@@ -80,7 +80,7 @@ evaluation_prompt = ChatPromptTemplate(
     ]
 )
 
-# Define the prompt template for confirmation evaluation
+# Define the prompt template for clarification and confirmation
 confirmation_prompt = ChatPromptTemplate(
     messages=[
         SystemMessagePromptTemplate.from_template(
@@ -159,33 +159,43 @@ def ask_questions():
                 logging.debug(f"Answer saved for question '{current_question}': {user_input}")
         elif evaluation_result == 'need validation':
             # Use the confirmation chain to evaluate the user's clarification
-            confirmation_input = {
-                "input": user_input,
-                "chat_history": memory.load_memory_variables({})['chat_history']
-            }
+            while True:
+                confirmation_input = {
+                    "input": user_input,
+                    "chat_history": memory.load_memory_variables({})['chat_history']
+                }
 
-            logging.debug(f"Inputs for confirmation chain: {confirmation_input}")
+                logging.debug(f"Inputs for confirmation chain: {confirmation_input}")
 
-            confirmation_output = confirmation_chain.invoke(confirmation_input)
+                confirmation_output = confirmation_chain.invoke(confirmation_input)
 
-            # Interpret the confirmation output
-            if isinstance(confirmation_output, AIMessage):
-                confirmation_result = confirmation_output.content.strip().lower()
-            else:
-                confirmation_result = str(confirmation_output).strip().lower()
+                # Interpret the confirmation output
+                if isinstance(confirmation_output, AIMessage):
+                    confirmation_result = confirmation_output.content.strip().lower()
+                else:
+                    confirmation_result = str(confirmation_output).strip().lower()
 
-            logging.debug(f"Confirmation result: {confirmation_result}")
+                logging.debug(f"Confirmation result: {confirmation_result}")
 
-            if confirmation_result == 'confirm':
-                # Save answer and continue
-                current_question_index = len(conversation_state["answers"])
-                if current_question_index < len(conversation_state["questions"]):
-                    current_question = conversation_state["questions"][current_question_index]
-                    conversation_state["answers"][current_question] = user_input
-                    logging.debug(f"Answer saved for question '{current_question}': {user_input}")
-            elif confirmation_result == 'clarify':
-                print("The LLM needs more information. Please provide a clearer response.")
-                continue  # Ask the same question again
+                if confirmation_result == 'confirm':
+                    # Save answer and continue
+                    current_question_index = len(conversation_state["answers"])
+                    if current_question_index < len(conversation_state["questions"]):
+                        current_question = conversation_state["questions"][current_question_index]
+                        conversation_state["answers"][current_question] = user_input
+                        logging.debug(f"Answer saved for question '{current_question}': {user_input}")
+                    break
+                elif confirmation_result == 'clarify':
+                    print("The LLM needs more information. Please provide a clearer response.")
+                    user_input = input("Your response (type 'pause' to save and exit): ")
+                    if user_input.lower() == 'pause':
+                        logging.debug("User chose to pause the conversation.")
+                        print("Conversation paused. Your progress has been saved.")
+                        save_conversation_state(conversation_state)
+                        return
+                    # Save the user's response in the conversation history
+                    memory.save_context({"input": user_input}, {"output": response})
+                    continue  # Re-run the confirmation process
 
         # Save the updated state after each interaction
         save_conversation_state(conversation_state)
