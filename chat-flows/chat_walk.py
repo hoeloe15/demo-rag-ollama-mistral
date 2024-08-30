@@ -44,10 +44,13 @@ def load_conversation_state():
             with open(conversation_state_file, 'r') as file:
                 if DEBUG:
                     logging.debug("Loading conversation state from file.")
-                return json.load(file)
+                state = json.load(file)
+                if "current_question_index" not in state:
+                    state["current_question_index"] = 0
+                return state
     except json.JSONDecodeError:
         logging.error("Failed to load conversation state. Starting a new conversation.")
-    return {"questions": questions, "answers": {}}
+    return {"questions": questions, "answers": {}, "current_question_index": 0}
 
 def save_conversation_state(state):
     """Save conversation state to a file."""
@@ -72,7 +75,7 @@ conversation_prompt = ChatPromptTemplate(
             "2. After each question, analyze the user's response to determine if it answers the question satisfactorily.\n"
             "3. If the response does not answer the question, rephrase the question or ask for clarification.\n"
             "4. If the response answers the question, save the answer and move on to the next question.\n"
-            "5. If all questions have been answered, provide a summary of the user's responses.\n"
+            "5. If all questions have been answered, provide a summary of the user's responses and ask the user to validate it. If the user is happy with the results, they should type 'finish' to end the conversation.\n"
             "6. Be concise and professional in your communication. Use the user's name when addressing them.\n\n"
             "Questions to ask:\n{questions}\n\n"
             "Conversation history:\n{chat_history}\n\n"
@@ -84,18 +87,40 @@ conversation_prompt = ChatPromptTemplate(
     ]
 )
 
+def initialize_conversation():
+    """Initialize the conversation with the list of questions."""
+    initial_prompt = f"Hello! I'm here to collect some information from you about you and your company.\nIf you type 'pause', you will save and exit the program, if you type 'finish' you will save and end the conversation. I'll be asking you the following questions:\n\n{chr(10).join(questions)}\n\nLet's get started!\n\nCan you please tell me your name?"
+    memory.save_context({"input": ""}, {"output": initial_prompt})
+    print(initial_prompt)
+
 def generate_response(user_input):
     """Generate a response based on the conversation history and user input."""
     inputs = {
         "input": user_input,
-        "questions": "\n".join(conversation_state["questions"]),
+        "questions": "\n".join(questions),
         "chat_history": memory.load_memory_variables({})['chat_history']
     }
+
+    prompt = (
+        "You are a helpful assistant having a conversation with a user. Your goal is to collect information based on the provided list of questions.\n\n"
+        "Instructions:\n"
+        "1. Analyze the conversation history to determine which questions have been answered satisfactorily.\n"
+        "2. If there are unanswered questions, ask the next question in a natural way, building upon the previous conversation.\n"
+        "3. If the user's response does not directly answer the question, rephrase the question or ask for clarification. Only do this once per question to avoid annoying the user.\n"
+        "4. If the user provides a satisfactory answer, save the answer and move on to the next question.\n"
+        "5. If all questions have been answered, provide a summary of the user's responses and ask if everything is correct and end the program by typing 'finish' or if something needs to be changed.\n"
+        "6. If the user agrees with the summary and nothing needs to change, ask them to type finish.\n"
+        "7. Be concise and professional in your communication. Use the user's name when addressing them.\n\n"
+        "Questions to ask:\n{questions}\n\n"
+        "Conversation history:\n{chat_history}\n\n"
+        "User: {input}\n"
+        "Assistant:"
+    )
 
     if DEBUG:
         logging.debug(f"Inputs for conversation prompt: {inputs}")
 
-    output = conversation_prompt.format_prompt(**inputs).to_messages()[-1]
+    output = model(prompt.format(**inputs)).content
 
     if DEBUG:
         logging.debug(f"Generated response: {output}")
@@ -104,10 +129,11 @@ def generate_response(user_input):
 
 def ask_questions():
     """Main function to manage the conversation."""
-    print("Hello! Let's start our conversation.")
+    initialize_conversation()
+
 
     while True:
-        user_input = input("Your response (type 'pause' to save and exit): ")
+        user_input = input("Your response: ")
 
         if user_input.lower() == 'pause':
             if DEBUG:
@@ -116,19 +142,24 @@ def ask_questions():
             save_conversation_state(conversation_state)
             break
 
+        if user_input.lower() == 'finish':
+            if DEBUG:
+                logging.debug("User chose to end the conversation.")
+            memory.save_context({"input": user_input}, {"output": ""})
+            response = generate_response(user_input)
+            memory.save_context({"input": ""}, {"output": response})
+            print(response)
+            print("\nThank you for the conversation! Here is a summary of your responses:")
+            for question in questions:
+                answer = next((a for q, a in conversation_state["answers"].items() if q == question), "Not answered")
+                print(f"{question}: {answer}")
+            break
+
         memory.save_context({"input": user_input}, {"output": ""})
         response = generate_response(user_input)
 
-        memory.save_context({"input": ""}, {"output": response.content})
-        print(response.content)
-
-        if all(question in conversation_state["answers"] for question in questions):
-            if DEBUG:
-                logging.debug("All questions have been answered.")
-            print("\nThank you for the conversation! Here is a summary of your responses:")
-            for question, answer in conversation_state["answers"].items():
-                print(f"{question}: {answer}")
-            break
+        memory.save_context({"input": ""}, {"output": response})
+        print(response)
 
         save_conversation_state(conversation_state)
 
