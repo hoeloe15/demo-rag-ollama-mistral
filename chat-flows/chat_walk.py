@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 import random
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv('OPENAI_API_KEY')
+
+# Debug flag
+DEBUG = False
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
@@ -40,7 +43,8 @@ def load_conversation_state():
     try:
         if os.path.exists(conversation_state_file):
             with open(conversation_state_file, 'r') as file:
-                logging.debug("Loading conversation state from file.")
+                if DEBUG:
+                    logging.debug("Loading conversation state from file.")
                 return json.load(file)
     except json.JSONDecodeError:
         logging.error("Failed to load conversation state. Starting a new conversation.")
@@ -50,7 +54,8 @@ def save_conversation_state(state):
     """Save conversation state to a file."""
     try:
         with open(conversation_state_file, 'w') as file:
-            logging.debug("Saving conversation state to file.")
+            if DEBUG:
+                logging.debug("Saving conversation state to file.")
             json.dump(state, file)
     except IOError:
         logging.error("Failed to save conversation state.")
@@ -134,7 +139,8 @@ def ask_questions():
                 "chat_history": memory.load_memory_variables({})['chat_history']
             }
 
-            logging.debug(f"Inputs for conversation chain: {inputs}")
+            if DEBUG:
+                logging.debug(f"Inputs for conversation chain: {inputs}")
 
             # Invoke the conversation chain
             output = conversation_chain.invoke(inputs)
@@ -145,13 +151,15 @@ def ask_questions():
             else:
                 response = str(output).strip()
 
-            logging.debug(f"Response from conversation chain: {response}")
+            if DEBUG:
+                logging.debug(f"Response from conversation chain: {response}")
 
             print(response)
             user_input = input("Your response (type 'pause' to save and exit): ")
 
             if user_input.lower() == 'pause':
-                logging.debug("User chose to pause the conversation.")
+                if DEBUG:
+                    logging.debug("User chose to pause the conversation.")
                 print("Conversation paused. Your progress has been saved.")
                 save_conversation_state(conversation_state)
                 break
@@ -167,7 +175,8 @@ def ask_questions():
                 "chat_history": memory.load_memory_variables({})['chat_history']
             }
 
-            logging.debug(f"Inputs for evaluation chain: {evaluation_input}")
+            if DEBUG:
+                logging.debug(f"Inputs for evaluation chain: {evaluation_input}")
 
             evaluation_output = evaluation_chain.invoke(evaluation_input)
 
@@ -177,7 +186,8 @@ def ask_questions():
             else:
                 evaluation_result = str(evaluation_output).strip().lower()
 
-            logging.debug(f"Evaluation result: {evaluation_result}")
+            if DEBUG:
+                logging.debug(f"Evaluation result: {evaluation_result}")
 
             if evaluation_result == 'go ahead':
                 # Save answer and continue
@@ -185,7 +195,8 @@ def ask_questions():
                 if current_question_index < len(conversation_state["questions"]):
                     current_question = conversation_state["questions"][current_question_index]
                     conversation_state["answers"][current_question] = user_input
-                    logging.debug(f"Answer saved for question '{current_question}': {user_input}")
+                    if DEBUG:
+                        logging.debug(f"Answer saved for question '{current_question}': {user_input}")
                     print(get_random_acknowledgement() + ". Let's move on.")
             elif evaluation_result == 'need validation':
                 # Use the confirmation chain to evaluate the user's clarification
@@ -195,7 +206,8 @@ def ask_questions():
                         "chat_history": memory.load_memory_variables({})['chat_history']
                     }
 
-                    logging.debug(f"Inputs for confirmation chain: {confirmation_input}")
+                    if DEBUG:
+                        logging.debug(f"Inputs for confirmation chain: {confirmation_input}")
 
                     confirmation_output = confirmation_chain.invoke(confirmation_input)
 
@@ -205,7 +217,8 @@ def ask_questions():
                     else:
                         confirmation_result = str(confirmation_output).strip().lower()
 
-                    logging.debug(f"Confirmation result: {confirmation_result}")
+                    if DEBUG:
+                        logging.debug(f"Confirmation result: {confirmation_result}")
 
                     if confirmation_result == 'confirm':
                         # Save answer and continue
@@ -213,14 +226,16 @@ def ask_questions():
                         if current_question_index < len(conversation_state["questions"]):
                             current_question = conversation_state["questions"][current_question_index]
                             conversation_state["answers"][current_question] = user_input
-                            logging.debug(f"Answer saved for question '{current_question}': {user_input}")
+                            if DEBUG:
+                                logging.debug(f"Answer saved for question '{current_question}': {user_input}")
                             print(get_random_acknowledgement() + ". Let's proceed.")
                         break
                     elif confirmation_result == 'clarify':
                         print("I apologize for the confusion. Could you please provide a clearer response?")
                         user_input = input("Your response (type 'pause' to save and exit): ")
                         if user_input.lower() == 'pause':
-                            logging.debug("User chose to pause the conversation.")
+                            if DEBUG:
+                                logging.debug("User chose to pause the conversation.")
                             print("Conversation paused. Your progress has been saved.")
                             save_conversation_state(conversation_state)
                             return
