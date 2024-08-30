@@ -2,7 +2,8 @@ import os
 import json
 import logging
 from dotenv import load_dotenv
-import random
+from langchain_openai import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,11 +14,6 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # Debug flag
 DEBUG = False
-
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.memory import ConversationBufferMemory
-from langchain_core.messages import HumanMessage, AIMessage
 
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o-mini")
@@ -62,43 +58,18 @@ def save_conversation_state(state):
     except IOError:
         logging.error("Failed to save conversation state.")
 
-# Load existing conversation state or initialize a new one
-conversation_state = load_conversation_state()
-
-# Define the prompt template
-conversation_prompt = ChatPromptTemplate(
-    messages=[
-        SystemMessagePromptTemplate.from_template(
-            "You are a helpful assistant having a conversation with a user. Your goal is to collect information based on the provided list of questions.\n\n"
-            "Instructions:\n"
-            "1. Greet the user and start asking the questions one by one.\n"
-            "2. After each question, analyze the user's response to determine if it answers the question satisfactorily.\n"
-            "3. If the response does not answer the question, rephrase the question or ask for clarification.\n"
-            "4. If the response answers the question, save the answer and move on to the next question.\n"
-            "5. If all questions have been answered, provide a summary of the user's responses and ask the user to validate it. If the user is happy with the results, they should type 'finish' to end the conversation.\n"
-            "6. Be concise and professional in your communication. Use the user's name when addressing them.\n\n"
-            "Questions to ask:\n{questions}\n\n"
-            "Conversation history:\n{chat_history}\n\n"
-            "User: {input}\n"
-            "Assistant:"
-        ),
-        MessagesPlaceholder(variable_name="chat_history"),
-        HumanMessagePromptTemplate.from_template("{input}")
-    ]
-)
-
 def initialize_conversation():
     """Initialize the conversation with the list of questions."""
     initial_prompt = f"Hello! I'm here to collect some information from you about you and your company.\nIf you type 'pause', you will save and exit the program, if you type 'finish' you will save and end the conversation. I'll be asking you the following questions:\n\n{chr(10).join(questions)}\n\nLet's get started!\n\nCan you please tell me your name?"
     memory.save_context({"input": ""}, {"output": initial_prompt})
-    print(initial_prompt)
+    return initial_prompt
 
-def generate_response(user_input):
+def generate_response(user_input, chat_history):
     """Generate a response based on the conversation history and user input."""
     inputs = {
         "input": user_input,
         "questions": "\n".join(questions),
-        "chat_history": memory.load_memory_variables({})['chat_history']
+        "chat_history": "\n".join([msg['content'] for msg in chat_history])
     }
 
     prompt = (
@@ -127,42 +98,3 @@ def generate_response(user_input):
         logging.debug(f"Generated response: {response.content}")
 
     return response.content
-
-def ask_questions():
-    """Main function to manage the conversation."""
-    initialize_conversation()
-
-
-    while True:
-        user_input = input("Your response: ")
-
-        if user_input.lower() == 'pause':
-            if DEBUG:
-                logging.debug("User chose to pause the conversation.")
-            print("Conversation paused. Your progress has been saved.")
-            save_conversation_state(conversation_state)
-            break
-
-        if user_input.lower() == 'finish':
-            if DEBUG:
-                logging.debug("User chose to end the conversation.")
-            memory.save_context({"input": user_input}, {"output": ""})
-            response = generate_response(user_input)
-            memory.save_context({"input": ""}, {"output": response})
-            print(response)
-            print("\nThank you for the conversation! Here is a summary of your responses:")
-            for question in questions:
-                answer = next((a for q, a in conversation_state["answers"].items() if q == question), "Not answered")
-                print(f"{question}: {answer}")
-            break
-
-        memory.save_context({"input": user_input}, {"output": ""})
-        response = generate_response(user_input)
-
-        memory.save_context({"input": ""}, {"output": response})
-        print(response)
-
-        save_conversation_state(conversation_state)
-
-# Start or resume the conversation
-ask_questions()
